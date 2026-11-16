@@ -48,7 +48,7 @@ class TSPLPrinterConnectionNetwork:
         retry_interval: float = 1.0,
     ) -> None:
         if not host and not mac:
-            raise ValueError("A network printer needs a host and/or a MAC address.")
+            raise ValueError("Ein Netzwerkdrucker braucht einen Host und/oder eine MAC-Adresse.")
         self.configured_host: Optional[str] = host
         self.port: int = port
         self.mac: Optional[str] = normalize_mac(mac) if mac else None
@@ -91,7 +91,7 @@ class TSPLPrinterConnectionNetwork:
                 seen_mac = mac_for_ip(peer_ip)
                 if seen_mac and seen_mac != self.mac:
                     raise ConnectionError(
-                        f"{peer_ip} belongs to {seen_mac}, not the printer {self.mac}"
+                        f"{peer_ip} gehört zu {seen_mac}, nicht zum Drucker {self.mac}"
                     )
                 _resolved_hosts[self.mac] = peer_ip
         except BaseException:
@@ -116,7 +116,7 @@ class TSPLPrinterConnectionNetwork:
             try:
                 if not host:
                     raise ConnectionError(
-                        f"IP address of network printer {self.mac} is unknown"
+                        f"IP-Adresse des Netzwerkdruckers {self.mac} ist unbekannt"
                     )
                 self._open(host)
                 print(f"Connected to TSPL printer at {host}:{self.port}.")
@@ -131,7 +131,7 @@ class TSPLPrinterConnectionNetwork:
                 if attempt >= max_retries:
                     target = f"{host}:{self.port}" if host else self.mac
                     raise ConnectionError(
-                        f"Could not connect to network printer {target}: {e}"
+                        f"Keine Verbindung zum Netzwerkdrucker {target}: {e}"
                     ) from e
                 print(f"Connection error: {e}. Retrying ({attempt}/{max_retries})...")
                 time.sleep(self.retry_interval)
@@ -197,7 +197,7 @@ class TSPLPrinterConnectionNetwork:
         """Read whatever the printer sent, waiting up to ``timeout`` ms for the
         first byte. Returns ``None`` on timeout or a closed connection."""
         if self.sock is None:
-            raise RuntimeError("Not connected to network printer. Call connect() first.")
+            raise RuntimeError("Nicht mit dem Netzwerkdrucker verbunden. Zuerst connect() aufrufen.")
         try:
             self.sock.settimeout(timeout / 1000)
             data = self.sock.recv(max_length)

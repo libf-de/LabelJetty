@@ -89,6 +89,16 @@ def _geometry(
     )
 
 
+def _enqueue_error(e: Exception) -> str:
+    """Message for a failed enqueue. The API's HTTP errors are English (and
+    stringify as "503: ..."); the UI shows its own German text for them."""
+    if isinstance(e, HTTPException):
+        if e.status_code == 503:
+            return "Der Druckdienst läuft nicht – der Auftrag wurde nicht angenommen."
+        return f"Fehler {e.status_code}: {e.detail}"
+    return str(e)
+
+
 def _build_params(
     job_type: JobType,
     *,
@@ -149,7 +159,7 @@ async def login_submit(
     user = config.find_user(username)
     if user is None or not verify_password(password, user.password_hash):
         ctx = _base_context(request)
-        ctx.update({"next": next, "error": "Invalid username or password."})
+        ctx.update({"next": next, "error": "Benutzername oder Passwort ist falsch."})
         return templates.TemplateResponse(
             "login.html", ctx, status_code=401
         )
@@ -217,7 +227,7 @@ async def ui_preview(
             if file is None or not file.filename:
                 return templates.TemplateResponse(
                     "_preview.html",
-                    {"request": request, "error": "Choose a file to preview."},
+                    {"request": request, "error": "Bitte eine Datei für die Vorschau auswählen."},
                 )
             suffix = ".pdf" if job_type == "pdf" else ".png"
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
@@ -281,7 +291,7 @@ async def ui_print(
     except ValueError:
         return templates.TemplateResponse(
             "_print_result.html",
-            {"request": request, "error": "Horizontal offset must be a number."},
+            {"request": request, "error": "Der X-Versatz muss eine Zahl sein."},
         )
     opts = LabelOptions(
         label_width_mm=label_width_mm,
@@ -306,7 +316,7 @@ async def ui_print(
         input_file_name = None
         if job_type in FILE_JOB_TYPES:
             if file is None or not file.filename:
-                raise ValueError("Choose a file to print.")
+                raise ValueError("Bitte eine Datei zum Drucken auswählen.")
             input_file_name = _store_upload(
                 file, ".pdf" if job_type == "pdf" else ".png"
             )
@@ -316,7 +326,7 @@ async def ui_print(
     except Exception as e:
         log.warning(f"Enqueue from UI failed: {e}")
         return templates.TemplateResponse(
-            "_print_result.html", {"request": request, "error": str(e)}
+            "_print_result.html", {"request": request, "error": _enqueue_error(e)}
         )
 
     # Tell the job list to refresh immediately.
@@ -462,7 +472,7 @@ def ui_homebox_print(
         job = _enqueue(job_type, params=params, input_file_name=filename)
     except (HomeboxError, Exception) as e:
         return templates.TemplateResponse(
-            "_print_result.html", {"request": request, "error": str(e)}
+            "_print_result.html", {"request": request, "error": _enqueue_error(e)}
         )
     resp = templates.TemplateResponse(
         "_print_result.html", {"request": request, "job": job}
@@ -601,19 +611,19 @@ async def ui_status(
 # --------------------------------------------------------------------------- #
 # Read-only fields shown for context (infra tier — not editable from the web).
 _SYSTEM_INFO_FIELDS = [
-    ("Listening host", "SERVER_LISTENING_HOST"),
-    ("Listening port", "SERVER_LISTENING_PORT"),
-    ("Database path", "SQLITE_PATH"),
-    ("Image storage", "IMAGE_STORAGE_DIRECTORY"),
-    ("Auth mode", "AUTH_MODE"),
+    ("Server-Adresse", "SERVER_LISTENING_HOST"),
+    ("Server-Port", "SERVER_LISTENING_PORT"),
+    ("Datenbankpfad", "SQLITE_PATH"),
+    ("Bildablage", "IMAGE_STORAGE_DIRECTORY"),
+    ("Anmeldemodus", "AUTH_MODE"),
 ]
 # Render groups in a stable, sensible order; unknown groups fall to the end.
 _GROUP_ORDER = [
-    "Label defaults",
-    "Printer",
-    "Authentication",
+    "Etiketten",
+    "Drucker",
+    "Anmeldung",
     "Homebox",
-    "Maintenance",
+    "Wartung",
     "System",
 ]
 
@@ -669,7 +679,7 @@ def _settings_field_views(cfg: Config) -> dict:
         view = {
             "name": name,
             "label": ui.get("label") or name,
-            "help": field.description,
+            "help": ui.get("help") or field.description,
             "widget": widget,
             "options": options,
             "locked": name in locked,
@@ -709,30 +719,32 @@ def _settings_field_views(cfg: Config) -> dict:
 def _group_notes(cfg: Config) -> dict:
     """Per-group explanatory notes shown under the group heading."""
     homebox = (
-        "The Homebox API key is a <strong>secret</strong> and is set only via the "
-        "<code>HOMEBOX_API_KEY</code> environment variable — it cannot be edited here. "
+        "Der Homebox-API-Schlüssel ist <strong>geheim</strong> und wird nur über die "
+        "Umgebungsvariable <code>HOMEBOX_API_KEY</code> gesetzt – hier ist er nicht änderbar. "
     )
     homebox += (
-        "It is currently set. ✓"
+        "Er ist derzeit gesetzt. ✓"
         if cfg.HOMEBOX_API_KEY
-        else "It is <strong>not set</strong>, so the Homebox module stays disabled until you set it in the environment. ⚠"
+        else "Er ist <strong>nicht gesetzt</strong>, daher bleibt das Homebox-Modul deaktiviert, bis er in den Umgebungsvariablen gesetzt wird. ⚠"
     )
 
     auth = (
-        "Add a login user and switch <em>Authentication mode</em> to <code>protected</code> to "
-        "secure the interface — no need to edit env/compose. Passwords are stored hashed; leave a "
-        "user's password blank to keep it unchanged. "
+        "Einen Benutzer anlegen und den <em>Anmeldemodus</em> auf <code>protected</code> stellen, um "
+        "die Oberfläche abzusichern – ohne env/Compose zu ändern. Passwörter werden gehasht gespeichert; "
+        "ein leeres Passwortfeld lässt das Passwort unverändert. "
     )
     if not cfg.SESSION_SECRET:
         auth += (
-            "<strong>Note:</strong> <code>SESSION_SECRET</code> is unset, so logins won't survive "
-            "a restart — set it in the environment for stable sessions. "
+            "<strong>Hinweis:</strong> <code>SESSION_SECRET</code> ist nicht gesetzt, daher gehen "
+            "Anmeldungen bei einem Neustart verloren – für dauerhafte Sitzungen in den "
+            "Umgebungsvariablen setzen. "
         )
     auth += (
-        "API tokens (<code>AUTH_TOKENS</code>) remain environment-only. Make sure you can log in "
-        "before saving <code>protected</code> — a mismatch would lock out the UI."
+        "API-Tokens (<code>AUTH_TOKENS</code>) lassen sich nur über die Umgebungsvariablen setzen. "
+        "Vor dem Speichern von <code>protected</code> sicherstellen, dass die Anmeldung klappt – "
+        "sonst ist die Oberfläche gesperrt."
     )
-    return {"Homebox": homebox, "Authentication": auth}
+    return {"Homebox": homebox, "Anmeldung": auth}
 
 
 def _settings_context(request: Request, **extra) -> dict:
@@ -810,7 +822,7 @@ async def ui_settings_save(
                 d = (dpis[i] if i < len(dpis) else "").strip()
                 xo = (xoffs[i] if i < len(xoffs) else "").strip()
                 if not w or not h:
-                    field_errors.append(f"Label profile '{pname}': width and height are required")
+                    field_errors.append(f"Etikettenprofil „{pname}“: Breite und Höhe sind Pflicht")
                     continue
                 row = {"name": pname, "width_mm": w, "height_mm": h}
                 if d:
@@ -841,7 +853,7 @@ async def ui_settings_save(
                 else:
                     existing = cfg.find_user(uname)
                     if existing is None:
-                        field_errors.append(f"User '{uname}': set a password for a new user")
+                        field_errors.append(f"Benutzer „{uname}“: Neue Benutzer brauchen ein Passwort")
                     else:
                         users.append(
                             {"username": uname, "password_hash": existing.password_hash}
@@ -852,7 +864,7 @@ async def ui_settings_save(
             try:
                 overrides[name] = json.loads(raw) if raw else []
             except json.JSONDecodeError as e:
-                field_errors.append(f"{ui.get('label') or name}: invalid JSON ({e})")
+                field_errors.append(f"{ui.get('label') or name}: ungültiges JSON ({e})")
         elif widget == "number":
             raw = str(form.get(name, "")).strip()
             if raw == "":
@@ -860,7 +872,7 @@ async def ui_settings_save(
             try:
                 overrides[name] = int(raw)
             except ValueError:
-                field_errors.append(f"{ui.get('label') or name}: must be a number")
+                field_errors.append(f"{ui.get('label') or name}: muss eine Zahl sein")
         elif widget == "decimal":
             raw = str(form.get(name, "")).strip().replace(",", ".")
             if raw == "":
@@ -871,7 +883,7 @@ async def ui_settings_save(
             try:
                 overrides[name] = float(raw)
             except ValueError:
-                field_errors.append(f"{ui.get('label') or name}: must be a number")
+                field_errors.append(f"{ui.get('label') or name}: muss eine Zahl sein")
         else:  # text / select
             if name not in form:
                 continue
@@ -891,7 +903,7 @@ async def ui_settings_save(
     try:
         Config(**overrides)
     except ValidationError as e:
-        msg = "; ".join(
+        msg = "Ungültige Einstellungen: " + "; ".join(
             f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}" for err in e.errors()
         )
         return templates.TemplateResponse(

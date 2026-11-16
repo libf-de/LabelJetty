@@ -97,7 +97,7 @@ class TSPLPrinterConnectionUSB:
         known = KNOWN_TSPL_VENDORS.get(dev.idVendor)
         if label and known:
             return f"{label} — {known}"
-        return label or known or "unknown device"
+        return label or known or "unbekanntes Gerät"
 
     @staticmethod
     def _is_printer_class(dev: Device) -> bool:
@@ -150,9 +150,9 @@ class TSPLPrinterConnectionUSB:
 
         if not candidates:
             raise ValueError(
-                "No TSPL printer auto-detected. Connect the printer and power it "
-                "on, or set PRINTER_USB manually — run `lsusb` to find its "
-                "vid:pid (see the Setup guide, 'Find your printer')."
+                "Kein TSPL-Drucker automatisch erkannt. Drucker anschließen und "
+                "einschalten oder PRINTER_USB manuell setzen – `lsusb` zeigt die "
+                "vid:pid (siehe Setup-Anleitung, „Find your printer“)."
             )
 
         if len(candidates) > 1:
@@ -161,8 +161,8 @@ class TSPLPrinterConnectionUSB:
                 for d in candidates
             )
             raise ValueError(
-                "Multiple TSPL printers detected — auto-detect will not guess. "
-                "Set PRINTER_USB to one of:\n" + listing
+                "Mehrere TSPL-Drucker erkannt – die automatische Erkennung rät nicht. "
+                "PRINTER_USB auf einen davon setzen:\n" + listing
             )
 
         dev = candidates[0]
@@ -256,7 +256,7 @@ class TSPLPrinterConnectionUSB:
         cls, vendor: Optional[int | str] = None, product: Optional[int | str] = None
     ) -> Self:
         if vendor is None and product is None:
-            raise ValueError("Must specify vendor and/or product ID")
+            raise ValueError("Hersteller- und/oder Produkt-ID angeben")
 
         # Convert hex strings
         if isinstance(vendor, str):
@@ -271,13 +271,13 @@ class TSPLPrinterConnectionUSB:
         )
 
         if devices is None:
-            raise ValueError("No USB devices found matching given VID/PID")
+            raise ValueError("Kein USB-Gerät mit dieser VID/PID gefunden")
 
         # Return the first match
         for dev in devices:
             return cls(dev)
 
-        raise ValueError("No USB devices found matching given VID/PID")
+        raise ValueError("Kein USB-Gerät mit dieser VID/PID gefunden")
 
     # -----------------------------
     # --- Lookup: Bus + Address ---
@@ -287,7 +287,7 @@ class TSPLPrinterConnectionUSB:
         cls, bus: Optional[int | str] = None, device_id: Optional[int | str] = None
     ) -> Self:
         if bus is None or device_id is None:
-            raise ValueError("bus and device_id must both be provided")
+            raise ValueError("Bus und Geräte-ID müssen beide angegeben werden")
 
         if isinstance(bus, str):
             bus = int(bus)
@@ -298,7 +298,7 @@ class TSPLPrinterConnectionUSB:
             if dev.bus == bus and dev.address == device_id:
                 return cls(dev)
 
-        raise ValueError(f"No USB device found at bus={bus} device={device_id}")
+        raise ValueError(f"Kein USB-Gerät an Bus={bus} Gerät={device_id} gefunden")
 
     # -------------------------
     # --- Lookup: Serial#  ---
@@ -306,7 +306,7 @@ class TSPLPrinterConnectionUSB:
     @classmethod
     def by_serial(cls, serial: str) -> Self:
         if not serial:
-            raise ValueError("Serial cannot be empty")
+            raise ValueError("Seriennummer darf nicht leer sein")
 
         for dev in _find(find_all=True):
             try:
@@ -317,7 +317,7 @@ class TSPLPrinterConnectionUSB:
             if dev_serial == serial:
                 return cls(dev)
 
-        raise ValueError(f"No USB device found with serial={serial}")
+        raise ValueError(f"Kein USB-Gerät mit Seriennummer={serial} gefunden")
 
     # ----------------------------
     # --- Lookup: Port Path     ---
@@ -338,7 +338,7 @@ class TSPLPrinterConnectionUSB:
             if dev.port_numbers == port_path:
                 return cls(dev)
 
-        raise ValueError(f"No USB device found at port path {port_path}")
+        raise ValueError(f"Kein USB-Gerät am Port-Pfad {port_path} gefunden")
 
     # ----------------------------
     # --- Lookup: Device Path   ---
@@ -356,7 +356,7 @@ class TSPLPrinterConnectionUSB:
         This extracts bus and device numbers from the path.
         """
         if not device_path:
-            raise ValueError("Device path cannot be empty")
+            raise ValueError("Gerätepfad darf nicht leer sein")
 
         # Handle full path or just "bus/device"
         if device_path.startswith("/dev/bus/usb/"):
@@ -365,8 +365,8 @@ class TSPLPrinterConnectionUSB:
         parts = device_path.split("/")
         if len(parts) != 2:
             raise ValueError(
-                f"Invalid device path format: {device_path}. "
-                "Expected format: '/dev/bus/usb/001/004' or '001/004'"
+                f"Ungültiger Gerätepfad: {device_path}. "
+                "Erwartet: '/dev/bus/usb/001/004' oder '001/004'"
             )
 
         try:
@@ -374,8 +374,8 @@ class TSPLPrinterConnectionUSB:
             device_id = int(parts[1])
         except ValueError:
             raise ValueError(
-                f"Invalid device path format: {device_path}. "
-                "Bus and device must be numeric."
+                f"Ungültiger Gerätepfad: {device_path}. "
+                "Bus und Gerät müssen Zahlen sein."
             )
 
         # Reuse the bus+device lookup
@@ -413,7 +413,7 @@ class TSPLPrinterConnectionUSB:
         talk to it. Retries a few times on transient USB errors.
         """
         if self.dev is None:
-            raise RuntimeError("No USB device to connect to.")
+            raise RuntimeError("Kein USB-Gerät zum Verbinden vorhanden.")
 
         attempt = 0
         while True:
@@ -447,9 +447,9 @@ class TSPLPrinterConnectionUSB:
                 )
 
                 if not self.ep_out:
-                    raise RuntimeError("USB OUT endpoint not found.")
+                    raise RuntimeError("USB-OUT-Endpunkt nicht gefunden.")
                 if not self.ep_in:
-                    raise RuntimeError("USB IN endpoint not found.")
+                    raise RuntimeError("USB-IN-Endpunkt nicht gefunden.")
 
                 print("Connected to TSPL printer.")
                 return True
@@ -459,9 +459,9 @@ class TSPLPrinterConnectionUSB:
                 # with a hint instead of looping and dumping a stack trace.
                 if e.errno == 13:
                     raise PermissionError(
-                        "Access denied opening the USB printer (EACCES). Grant USB "
-                        "access via a udev rule (or run with sudo) — see the "
-                        "'Printer setup' section of the README."
+                        "Zugriff auf den USB-Drucker verweigert (EACCES). USB-Zugriff "
+                        "per udev-Regel erlauben (oder mit sudo starten) – siehe "
+                        "Abschnitt „Printer setup“ in der README."
                     ) from e
                 attempt += 1
                 if attempt >= max_retries:
@@ -556,10 +556,10 @@ class TSPLPrinterConnectionUSB:
             RuntimeError: If not connected or endpoint not available
         """
         if not self.dev:
-            raise RuntimeError("Not connected to USB device. Call connect() first.")
+            raise RuntimeError("Nicht mit dem USB-Gerät verbunden. Zuerst connect() aufrufen.")
 
         if not self.ep_in:
-            raise RuntimeError("USB IN endpoint not available.")
+            raise RuntimeError("USB-IN-Endpunkt nicht verfügbar.")
 
         try:
             data = self.ep_in.read(max_length, timeout=timeout)

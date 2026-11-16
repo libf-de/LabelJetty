@@ -2,32 +2,32 @@
 {% block content %}
 
 <section class="panel">
-  <h2>Homebox — connect for printing</h2>
+  <h2>Homebox – zum Drucken verbinden</h2>
   <p class="hint">
-    Two ways to drive this printer from Homebox's own per-entity “print” button.
-    These render to your configured stock ({{ w_mm }}×{{ h_mm }} mm @ {{ dpi }} dpi).
+    Zwei Wege, diesen Drucker über den „Drucken“-Knopf von Homebox anzusteuern.
+    Beide rendern für das konfigurierte Etikett ({{ w_mm }}×{{ h_mm }} mm @ {{ dpi }} dpi).
   </p>
-  <p><a href="/">← Back to the printer</a></p>
+  <p><a href="/">← Zurück zum Drucker</a></p>
 
   <div class="field">
-    <label for="hb-host">Printer service address <em>as reachable from the Homebox host</em></label>
+    <label for="hb-host">Adresse des Druckdienstes <em>wie vom Homebox-Host erreichbar</em></label>
     <input id="hb-host" name="host" value="{{ host_value }}"
-           placeholder="e.g. 192.168.1.50:8888 or printer.local:8888"
+           placeholder="z. B. 192.168.1.50:8888 oder printer.local:8888"
            hx-get="/ui/homebox/setup" hx-trigger="keyup changed delay:400ms"
            hx-target="#hb-setup-out" hx-select="#hb-setup-out" hx-swap="outerHTML">
-    <div class="hint">Currently using <code>{{ base }}</code>. Override above if Homebox can't reach that address.</div>
+    <div class="hint">Aktuell wird <code>{{ base }}</code> verwendet. Oben überschreiben, falls Homebox diese Adresse nicht erreicht.</div>
   </div>
 </section>
 
 <div id="hb-setup-out">
 
 <section class="panel">
-  <h2>Option B — External label service (no script on the Homebox host)</h2>
+  <h2>Option B – Externer Etikettendienst (kein Skript auf dem Homebox-Host)</h2>
   <p class="hint">
-    On the Homebox server set <code>HBOX_LABEL_MAKER_LABEL_SERVICE_URL</code> to the URL
-    below. Homebox will ask us to render each label; we render it with our engine
-    {% if autoprint %}<strong>and enqueue the print as a side effect</strong>{% else %}
-    (auto-print is currently <strong>disabled</strong>; we only return the image){% endif %}.
+    Auf dem Homebox-Server <code>HBOX_LABEL_MAKER_LABEL_SERVICE_URL</code> auf die URL
+    unten setzen. Homebox lässt dann jedes Etikett von uns rendern
+    {% if autoprint %}<strong>und wir stellen den Druck dabei gleich in die Warteschlange</strong>{% else %}
+    (automatisches Drucken ist derzeit <strong>deaktiviert</strong>; wir liefern nur das Bild){% endif %}.
   </p>
   <div class="field">
     <label>HBOX_LABEL_MAKER_LABEL_SERVICE_URL</label>
@@ -35,26 +35,26 @@
   </div>
   {% if autoprint %}
   <div class="msg ok">
-    Auto-print is ON. If your Homebox build also calls this URL for label
-    <em>previews</em>, that would cause spurious prints — set
-    <code>HOMEBOX_LABEL_SERVICE_AUTOPRINT=false</code> and use Option C instead.
+    Automatisches Drucken ist AN. Ruft die Homebox-Version diese URL auch für
+    <em>Vorschauen</em> auf, entstehen ungewollte Drucke – dann
+    <code>HOMEBOX_LABEL_SERVICE_AUTOPRINT=false</code> setzen und stattdessen Option C nutzen.
   </div>
   {% endif %}
 </section>
 
 <section class="panel">
-  <h2>Option C — Print-command script (prints only on the print button)</h2>
+  <h2>Option C – Druckbefehl-Skript (druckt nur über den Drucken-Knopf)</h2>
   <p class="hint">
-    Save this script on the Homebox host, make it executable, and set
-    <code>HBOX_LABEL_MAKER_PRINT_COMMAND</code> to
+    Dieses Skript auf dem Homebox-Host speichern, ausführbar machen und
+    <code>HBOX_LABEL_MAKER_PRINT_COMMAND</code> setzen auf
     <code>/path/to/script.sh {{ "{{" }}.FileName{{ "}}" }}</code>.
-    Homebox renders the label itself and we just print the bytes.
+    Homebox rendert das Etikett selbst, wir drucken nur die Daten.
   </p>
   <div class="field">
     <label>print-label.sh</label>
     <textarea readonly rows="6" onclick="this.select()">{{ print_script }}</textarea>
   </div>
-  <p class="hint">Match Homebox's rendering to your stock with these env vars (pixels):</p>
+  <p class="hint">Mit diesen Umgebungsvariablen (in Pixeln) passt Homebox die Darstellung an das Etikett an:</p>
   <div class="field">
     <textarea readonly rows="5" onclick="this.select()">HBOX_LABEL_MAKER_WIDTH={{ width_px }}
 HBOX_LABEL_MAKER_HEIGHT={{ height_px }}

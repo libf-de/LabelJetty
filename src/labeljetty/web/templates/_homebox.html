@@ -1,13 +1,13 @@
 <h2>Homebox</h2>
 <p class="hint" style="margin-top:-0.4rem">
-  Search your inventory and print labels, or
-  <a href="/ui/homebox/setup">connect Homebox's own print button →</a>
+  Inventar durchsuchen und Etiketten drucken, oder
+  <a href="/ui/homebox/setup">den Druckknopf von Homebox verbinden →</a>
 </p>
 <div class="field">
-  <label for="hb-q">Search items / locations
-    <span id="hb-spin" class="htmx-indicator" style="color:var(--accent)">· searching…</span>
+  <label for="hb-q">Gegenstände / Orte suchen
+    <span id="hb-spin" class="htmx-indicator" style="color:var(--accent)">· suche…</span>
   </label>
-  <input id="hb-q" name="q" placeholder="Search Homebox…"
+  <input id="hb-q" name="q" placeholder="In Homebox suchen…"
          hx-get="/ui/homebox/search"
          hx-trigger="keyup changed delay:350ms, search"
          hx-target="#hb-results"
@@ -18,6 +18,6 @@
   <input type="checkbox" id="hb-loc" name="is_location" value="true" style="width:auto"
          hx-get="/ui/homebox/search" hx-trigger="change"
          hx-target="#hb-results" hx-include="#hb-q">
-  <label for="hb-loc" style="margin:0">Search locations instead of items</label>
+  <label for="hb-loc" style="margin:0">Orte statt Gegenstände suchen</label>
 </div>
-<div id="hb-results"><div class="hint">Type to search your Homebox inventory.</div></div>
+<div id="hb-results"><div class="hint">Tippen, um das Homebox-Inventar zu durchsuchen.</div></div>

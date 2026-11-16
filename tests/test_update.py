@@ -111,7 +111,7 @@ def test_ui_update_banner_shown_when_available(client, monkeypatch):
     _patch(monkeypatch, version="0.3.1")
     resp = client.get("/ui/update")
     assert resp.status_code == 200
-    assert "Update available" in resp.text
+    assert "Update verfügbar" in resp.text
     assert "0.4.0" in resp.text
 
 

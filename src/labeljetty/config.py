@@ -26,6 +26,7 @@ def _ui(
     widget: Optional[str] = None,
     restart: bool = False,
     secret: bool = False,
+    help: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Mark a Config field as editable in the web settings UI.
 
@@ -35,7 +36,8 @@ def _ui(
     UI code. ``widget`` overrides the annotation-inferred input (e.g. ``"json"``
     for list-of-model fields); ``restart`` flags values that only take effect
     after a process restart; ``secret`` masks the value (reserved — no secrets
-    are exposed in the UI yet)."""
+    are exposed in the UI yet); ``help`` is the hint shown under the input (the
+    UI is German, so it replaces the English ``description`` there)."""
     return {
         "ui": {
             "editable": True,
@@ -44,6 +46,7 @@ def _ui(
             "widget": widget,
             "restart": restart,
             "secret": secret,
+            "help": help,
         }
     }
 
@@ -81,7 +84,7 @@ class Config(BaseSettings):
     APP_NAME: str = "LabelJetty"
     LOG_LEVEL: Literal["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"] = Field(
         default="DEBUG",
-        json_schema_extra=_ui("System", label="Log level", restart=True),
+        json_schema_extra=_ui("System", label="Protokollstufe", restart=True),
     )
     LOG_DISABLE_COLORS: bool = False
     UVICORN_LOG_LEVEL: Optional[str] = Field(
@@ -105,7 +108,7 @@ class Config(BaseSettings):
     # local users; OIDC is planned as a drop-in third provider).
     AUTH_MODE: Literal["open", "protected"] = Field(
         default="open",
-        json_schema_extra=_ui("Authentication", label="Authentication mode"),
+        json_schema_extra=_ui("Anmeldung", label="Anmeldemodus", help="„open“: keine Anmeldung nötig. „protected“: jede Anfrage braucht eine gültige Anmeldung (Benutzer oder API-Token)."),
     )
     # API tokens for machine-to-machine access, as a JSON list, e.g.
     #   AUTH_TOKENS='[{"name":"ci","token":"s3cr3t"}]'
@@ -116,7 +119,7 @@ class Config(BaseSettings):
     # Generate password_hash with: labeljetty-hash-password
     AUTH_USERS: List[AuthUser] = Field(
         default_factory=list,
-        json_schema_extra=_ui("Authentication", label="Login users", widget="auth_users"),
+        json_schema_extra=_ui("Anmeldung", label="Benutzer", widget="auth_users"),
     )
     # Secret used to sign session cookies. Leave unset for an ephemeral random
     # secret (logins won't survive a restart) — set a stable value in production.
@@ -130,7 +133,7 @@ class Config(BaseSettings):
     DELETE_OLD_JOBS_AFTER_DAYS: int = Field(
         default=100,
         description="Old job entries in the database will be removed with associated files.",
-        json_schema_extra=_ui("Maintenance", label="Delete old jobs after (days)"),
+        json_schema_extra=_ui("Wartung", label="Alte Aufträge löschen nach (Tagen)", help="Ältere Aufträge werden samt gespeicherten Dateien aus der Datenbank entfernt."),
     )
     # --- Update check (optional, outbound) ---------------------------------- #
     # Compares the running version against the latest GitHub release and shows an
@@ -143,22 +146,22 @@ class Config(BaseSettings):
             "in the web UI. One outbound HTTPS call to the public GitHub API, cached "
             "for hours. Turn off for offline/air-gapped deployments."
         ),
-        json_schema_extra=_ui("Maintenance", label="Check for updates"),
+        json_schema_extra=_ui("Wartung", label="Nach Updates suchen", help="Prüft auf GitHub, ob eine neuere Version vorliegt, und zeigt dann einen Hinweis an. Ein ausgehender HTTPS-Aufruf, für Stunden zwischengespeichert. Für Offline-Installationen abschalten."),
     )
     UPDATE_CHECK_REPO: str = Field(
         default="motey/LabelJetty",
         description="GitHub 'owner/repo' queried for the latest release (set this on a fork).",
-        json_schema_extra=_ui("Maintenance", label="Update check repo (owner/repo)"),
+        json_schema_extra=_ui("Wartung", label="Repository für die Update-Prüfung (owner/repo)", help="GitHub-Repository „owner/repo“, dessen neueste Version abgefragt wird (bei einem Fork anpassen)."),
     )
     # Default label geometry — used when a print job does not specify its own.
     DEFAULT_LABEL_WIDTH_MM: int = Field(
-        default=100, json_schema_extra=_ui("Label defaults", label="Default width (mm)")
+        default=100, json_schema_extra=_ui("Etiketten", label="Standardbreite (mm)")
     )
     DEFAULT_LABEL_HEIGHT_MM: int = Field(
-        default=30, json_schema_extra=_ui("Label defaults", label="Default height (mm)")
+        default=30, json_schema_extra=_ui("Etiketten", label="Standardhöhe (mm)")
     )
     DEFAULT_DPI: int = Field(
-        default=203, json_schema_extra=_ui("Label defaults", label="Default DPI")
+        default=203, json_schema_extra=_ui("Etiketten", label="Standard-DPI")
     )
     # Named label profiles selectable in the web UI, as a JSON list, e.g.
     #   LABEL_PROFILES='[{"name":"Homebox","width_mm":57,"height_mm":32}]'
@@ -166,7 +169,7 @@ class Config(BaseSettings):
     LABEL_PROFILES: List[LabelProfile] = Field(
         default_factory=list,
         json_schema_extra=_ui(
-            "Label defaults", label="Label profiles", widget="label_profiles"
+            "Etiketten", label="Etikettenprofile", widget="label_profiles"
         ),
     )
     # Horizontal alignment. TSPL's x=0 is the edge of the print head, not of the
@@ -182,7 +185,7 @@ class Config(BaseSettings):
             "horizontal offset is calculated automatically as (max width − label "
             "width) / 2. A label profile's own X offset still takes precedence."
         ),
-        json_schema_extra=_ui("Label defaults", label="Printer max. print width (mm)"),
+        json_schema_extra=_ui("Etiketten", label="Maximale Druckbreite des Druckers (mm)", help="Breite des Druckkopfs in mm. Wenn gesetzt, wird angenommen, dass die Etiketten mittig geführt werden, und der horizontale Versatz wird automatisch als (max. Breite − Etikettenbreite) / 2 berechnet. Ein eigener X-Versatz im Etikettenprofil hat Vorrang."),
     )
     LABEL_X_OFFSET_MM: float = Field(
         default=0.0,
@@ -191,7 +194,7 @@ class Config(BaseSettings):
             "(positive moves content right). Added on top of the automatic offset "
             "when the printer max. print width is set, so it doubles as a fine-tune."
         ),
-        json_schema_extra=_ui("Label defaults", label="Horizontal offset (mm)"),
+        json_schema_extra=_ui("Etiketten", label="Horizontaler Versatz (mm)", help="Versatz in mm für Etiketten, deren Profil keinen eigenen festlegt (positiv = nach rechts). Wird zum automatischen Versatz addiert, falls die maximale Druckbreite gesetzt ist – dient dann zur Feinjustierung."),
     )
 
     # --- Settings UI (the admin config page itself) ------------------------- #
@@ -209,12 +212,12 @@ class Config(BaseSettings):
     # The module's UI section + endpoints appear only when HOMEBOX_URL and
     # HOMEBOX_API_KEY are both set (and HOMEBOX_ENABLED is true).
     HOMEBOX_ENABLED: bool = Field(
-        default=True, json_schema_extra=_ui("Homebox", label="Enable Homebox module")
+        default=True, json_schema_extra=_ui("Homebox", label="Homebox-Modul aktivieren")
     )
     HOMEBOX_URL: Optional[str] = Field(
         default=None,
         description="Base URL of the Homebox server, e.g. https://box.example.com",
-        json_schema_extra=_ui("Homebox", label="Homebox URL"),
+        json_schema_extra=_ui("Homebox", label="Homebox-URL", help="Basis-URL des Homebox-Servers, z. B. https://box.example.com"),
     )
     # API key stays env-only for now — secrets are not exposed in the settings UI.
     HOMEBOX_API_KEY: Optional[str] = Field(
@@ -223,17 +226,17 @@ class Config(BaseSettings):
     HOMEBOX_API_PREFIX: str = Field(
         default="/api/v1",
         description="API path prefix on the Homebox server (entities live at <prefix>/entities).",
-        json_schema_extra=_ui("Homebox", label="API path prefix"),
+        json_schema_extra=_ui("Homebox", label="API-Pfadpräfix", help="API-Pfadpräfix auf dem Homebox-Server (Einträge liegen unter <Präfix>/entities)."),
     )
     HOMEBOX_ENTITY_URL_TEMPLATE: str = Field(
         default="/item/{id}",
         description="Web path (appended to HOMEBOX_URL) an entity opens at; '{id}' is substituted. Used for the QR link.",
-        json_schema_extra=_ui("Homebox", label="Entity URL template"),
+        json_schema_extra=_ui("Homebox", label="URL-Vorlage für Einträge", help="Webpfad (an die Homebox-URL angehängt), unter dem ein Eintrag geöffnet wird; „{id}“ wird ersetzt. Wird für den QR-Link verwendet."),
     )
     HOMEBOX_LABEL_MARGIN_MM: float = Field(
         default=0.0,
         ge=0.0,
-        json_schema_extra=_ui("Homebox", label="Safety border (mm)"),
+        json_schema_extra=_ui("Homebox", label="Sicherheitsrand (mm)", help="Leerer Rand auf allen Seiten beim Drucken eines Homebox-Etiketts. Homebox rendert sein Etikett randlos, daher wird das Bild eingerückt, damit nichts zu nah an den Rand kommt. Standard 0 (unverändert drucken)."),
         description=(
             "Blank safety border reserved on all sides when printing a Homebox "
             "label. Homebox renders its own label edge-to-edge (sized by the "
@@ -245,7 +248,7 @@ class Config(BaseSettings):
     )
     HOMEBOX_LABEL_SERVICE_AUTOPRINT: bool = Field(
         default=True,
-        json_schema_extra=_ui("Homebox", label="Auto-print on label-service fetch"),
+        json_schema_extra=_ui("Homebox", label="Automatisch drucken beim Abruf durch den Etikettendienst", help="Druckt automatisch, sobald Homebox das Etikettenbild über den externen Etikettendienst anfordert. Abschalten, falls die Homebox-Version diese URL auch für Vorschauen aufruft (ungewollte Drucke) – dann das Druckbefehl-Skript (Option C) verwenden."),
         description=(
             "For the push 'external label service' endpoint: also enqueue the print "
             "as a side effect of Homebox requesting the label image. Disable if your "
@@ -274,9 +277,9 @@ class Config(BaseSettings):
         """Guard against a lock-everyone-out / no-op auth configuration."""
         if self.AUTH_MODE == "protected" and not self.AUTH_TOKENS and not self.AUTH_USERS:
             raise ValueError(
-                "AUTH_MODE=protected but neither AUTH_TOKENS nor AUTH_USERS is "
-                "configured — this would lock out every request. Configure at "
-                "least one token or user, or set AUTH_MODE=open."
+                "AUTH_MODE=protected, aber weder AUTH_TOKENS noch AUTH_USERS ist "
+                "konfiguriert – damit wäre jeder Zugriff gesperrt. Mindestens einen "
+                "Token oder Benutzer anlegen oder AUTH_MODE=open setzen."
             )
         return self
 
@@ -287,8 +290,8 @@ class Config(BaseSettings):
             self.PRINTER_HOST or self.PRINTER_MAC
         ):
             raise ValueError(
-                "PRINTER_CONNECTION=network needs PRINTER_HOST (the printer's IP or "
-                "hostname) and/or PRINTER_MAC (to find it via ARP)."
+                "PRINTER_CONNECTION=network braucht PRINTER_HOST (IP oder Hostname "
+                "des Druckers) und/oder PRINTER_MAC (um ihn per ARP zu finden)."
             )
         return self
 
@@ -327,7 +330,7 @@ class Config(BaseSettings):
     def get_label_profiles(self) -> List[LabelProfile]:
         """Configured profiles, preceded by the server-default geometry."""
         default = LabelProfile(
-            name="Default",
+            name="Standard",
             width_mm=self.DEFAULT_LABEL_WIDTH_MM,
             height_mm=self.DEFAULT_LABEL_HEIGHT_MM,
             dpi=self.DEFAULT_DPI,
@@ -337,7 +340,7 @@ class Config(BaseSettings):
     # specific device with ONE of the selector forms below.
     PRINTER_USB: Optional[str] = Field(
         default=None,
-        json_schema_extra=_ui("Printer", label="USB printer", widget="printer_select"),
+        json_schema_extra=_ui("Drucker", label="USB-Drucker", help="Leer lassen, um einen angeschlossenen TSPL-Drucker automatisch zu erkennen. Zum Festlegen: „serial:ABC123456“, „path:/dev/bus/usb/001/004“, „port:3-1-2“, „vid:1234:pid:5678“ bzw. „vid:1234“ oder „bus:1:addr:4“.", widget="printer_select"),
         description=(
             "USB printer identifier. Leave unset to auto-detect a connected TSPL "
             "printer (matches known vendors and USB printer-class devices). "
@@ -365,7 +368,7 @@ class Config(BaseSettings):
             "How to reach the printer: 'usb' (PRINTER_USB / auto-detect) or "
             "'network' (raw TCP to PRINTER_HOST:PRINTER_PORT)."
         ),
-        json_schema_extra=_ui("Printer", label="Connection"),
+        json_schema_extra=_ui("Drucker", label="Verbindung", help="Wie der Drucker erreicht wird: „usb“ (USB-Drucker / automatische Erkennung) oder „network“ (TCP zu Host:Port)."),
     )
     PRINTER_HOST: Optional[str] = Field(
         default=None,
@@ -374,12 +377,12 @@ class Config(BaseSettings):
             "PRINTER_MAC is set — the IP is then looked up via ARP."
         ),
         examples=["10.101.3.79", "labelprinter.lan"],
-        json_schema_extra=_ui("Printer", label="Network printer host"),
+        json_schema_extra=_ui("Drucker", label="Host des Netzwerkdruckers", help="IP-Adresse oder Hostname des Netzwerkdruckers. Optional, wenn die MAC-Adresse gesetzt ist – die IP wird dann per ARP gesucht."),
     )
     PRINTER_PORT: int = Field(
         default=9100,
         description="TCP port of a network printer (raw printing, usually 9100).",
-        json_schema_extra=_ui("Printer", label="Network printer port"),
+        json_schema_extra=_ui("Drucker", label="Port des Netzwerkdruckers", help="TCP-Port des Netzwerkdruckers (Rohdruck, meist 9100)."),
     )
     PRINTER_MAC: Optional[str] = Field(
         default=None,
@@ -391,7 +394,7 @@ class Config(BaseSettings):
             "network — in Docker use network_mode: host."
         ),
         examples=["aa:bb:cc:dd:ee:ff"],
-        json_schema_extra=_ui("Printer", label="Network printer MAC address"),
+        json_schema_extra=_ui("Drucker", label="MAC-Adresse des Netzwerkdruckers", help="Ist sie gesetzt und der Drucker unter seiner letzten IP nicht erreichbar (z. B. neue DHCP-Adresse), durchsucht LabelJetty das lokale Subnetz und findet die neue IP über die ARP-Tabelle; sie wird bis zum Neustart gemerkt. Erfordert dasselbe lokale Netz – in Docker network_mode: host."),
     )
 
     def get_printer_connection(
@@ -431,7 +434,7 @@ class Config(BaseSettings):
             parts = usb_id.split(":")
             if len(parts) != 4 or parts[2] != "addr":
                 raise ValueError(
-                    f"Invalid bus format: {usb_id}. Expected 'bus:1:addr:4'"
+                    f"Ungültiges Bus-Format: {usb_id}. Erwartet: 'bus:1:addr:4'"
                 )
             bus = int(parts[1])
             addr = int(parts[3])
@@ -446,8 +449,8 @@ class Config(BaseSettings):
 
         else:
             raise ValueError(
-                f"Invalid PRINTER_USB format: {usb_id}\n"
-                "Must start with: serial:, path:, port:, bus:, or vid:"
+                f"Ungültiges PRINTER_USB-Format: {usb_id}\n"
+                "Muss beginnen mit: serial:, path:, port:, bus: oder vid:"
             )
 
     ###### CONFIG END ######

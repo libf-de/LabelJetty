@@ -214,7 +214,7 @@ def test_autodetect_single(monkeypatch):
 
 def test_autodetect_none_raises(monkeypatch):
     _patch_find(monkeypatch, [])
-    with pytest.raises(ValueError, match="No TSPL printer auto-detected"):
+    with pytest.raises(ValueError, match="Kein TSPL-Drucker automatisch erkannt"):
         Conn.autodetect()
 
 
@@ -250,7 +250,7 @@ def test_info_never_raises_on_bad_descriptors(monkeypatch):
 def test_autodetect_multiple_raises_with_selectors(monkeypatch):
     devs = [FakeDiscDev(0x2d37, 0x62de), FakeDiscDev(0x1234, 0x5678, interface_class=7)]
     _patch_find(monkeypatch, devs)
-    with pytest.raises(ValueError, match="Multiple TSPL printers") as exc:
+    with pytest.raises(ValueError, match="Mehrere TSPL-Drucker") as exc:
         Conn.autodetect()
     # Each candidate is offered as a copy-paste PRINTER_USB selector.
     assert "PRINTER_USB=vid:2d37:pid:62de" in str(exc.value)

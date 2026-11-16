@@ -81,7 +81,7 @@ class HomeboxClient:
         self.api_prefix = (api_prefix or config.HOMEBOX_API_PREFIX).rstrip("/")
         self.timeout = timeout
         if not self.base_url or not self.api_key:
-            raise HomeboxError("Homebox is not configured (URL/API key missing).")
+            raise HomeboxError("Homebox ist nicht konfiguriert (URL/API-Schlüssel fehlt).")
 
     def _request(self, path: str, params: Dict[str, Any]) -> tuple[bytes, str]:
         """GET ``<prefix><path>?<params>`` → (body bytes, content-type)."""
@@ -98,9 +98,9 @@ class HomeboxClient:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 return resp.read(), resp.headers.get("Content-Type", "")
         except urllib.error.HTTPError as e:  # type: ignore[attr-defined]
-            raise HomeboxError(f"Homebox returned HTTP {e.code}: {e.reason}") from e
+            raise HomeboxError(f"Homebox antwortete mit HTTP {e.code}: {e.reason}") from e
         except Exception as e:
-            raise HomeboxError(f"Could not reach Homebox: {e}") from e
+            raise HomeboxError(f"Homebox nicht erreichbar: {e}") from e
 
     def _get(self, path: str, params: Dict[str, Any]) -> Any:
         body, _ = self._request(path, params)
@@ -138,5 +138,5 @@ class HomeboxClient:
         only want the image so we can print it ourselves.
         """
         if kind not in ("item", "location", "asset"):
-            raise HomeboxError(f"Unknown label kind: {kind}")
+            raise HomeboxError(f"Unbekannte Etikettenart: {kind}")
         return self._request(f"/labelmaker/{kind}/{entity_id}", {})

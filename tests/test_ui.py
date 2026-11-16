@@ -105,7 +105,7 @@ def test_preview_png_upload(client):
 def test_preview_file_job_without_file_shows_error(client):
     resp = client.post("/ui/preview", data={"job_type": "png"})
     assert resp.status_code == 200
-    assert "Choose a file" in resp.text
+    assert "Bitte eine Datei" in resp.text
 
 
 # --------------------------------------------------------------------------- #
@@ -120,7 +120,7 @@ def test_ui_print_enqueues_and_triggers_refresh(client, worker_running):
 def test_ui_print_file_job_without_file_errors(client, worker_running):
     resp = client.post("/ui/print", data={"job_type": "png"})
     assert resp.status_code == 200
-    assert "Choose a file" in resp.text
+    assert "Bitte eine Datei" in resp.text
 
 
 def test_ui_jobs_fragment(client, worker_running):
@@ -204,7 +204,7 @@ def test_homebox_setup_page(client):
 # --------------------------------------------------------------------------- #
 def test_index_profile_picker_has_custom_option(client):
     html = client.get("/").text
-    assert '<option value="custom">Custom…</option>' in html
+    assert '<option value="custom">Benutzerdefiniert…</option>' in html
     # Geometry inputs are hidden until "Custom…" is chosen; copies stay visible.
     assert 'id="custom-geometry" style="display:none"' in html
     assert 'name="x_offset_mm"' in html
@@ -239,4 +239,11 @@ def test_ui_print_without_offset_leaves_it_to_config(client, worker_running):
 
 def test_ui_print_rejects_non_numeric_offset(client, worker_running):
     resp = client.post("/ui/print", data={"job_type": "text", "text": "hi", "x_offset_mm": "abc"})
-    assert "must be a number" in resp.text
+    assert "muss eine Zahl sein" in resp.text
+
+
+def test_ui_print_worker_down_shows_german_error(client):
+    # No worker_running fixture → the enqueue is rejected with HTTP 503.
+    resp = client.post("/ui/print", data={"job_type": "text", "text": "hi"})
+    assert "Der Druckdienst läuft nicht" in resp.text
+    assert "503" not in resp.text

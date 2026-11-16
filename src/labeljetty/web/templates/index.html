@@ -2,17 +2,17 @@
 {% block content %}
 
 <section class="panel">
-  <h2>Print a label</h2>
+  <h2>Etikett drucken</h2>
   <form id="print-form" hx-encoding="multipart/form-data">
 
     <div class="field">
-      <label for="job_type">Label type</label>
+      <label for="job_type">Etikettenart</label>
       <select id="job_type" name="job_type" onchange="updateFields()">
         <option value="text">Text</option>
         <option value="markdown">Markdown</option>
-        <option value="qrcode">QR code</option>
+        <option value="qrcode">QR-Code</option>
         <option value="barcode">Barcode</option>
-        <option value="png">Image (PNG, JPG, …)</option>
+        <option value="png">Bild (PNG, JPG, …)</option>
         <option value="pdf">PDF</option>
       </select>
     </div>
@@ -20,36 +20,36 @@
     <!-- text / markdown -->
     <div class="field jt jt-text jt-markdown">
       <label for="text">Text</label>
-      <textarea id="text" name="text" placeholder="Label text…"></textarea>
-      <div class="hint jt jt-markdown"># Heading, ## Subheading, * bullet, **bold**</div>
+      <textarea id="text" name="text" placeholder="Etikettentext…"></textarea>
+      <div class="hint jt jt-markdown"># Überschrift, ## Unterüberschrift, * Aufzählung, **fett**</div>
     </div>
 
     <!-- qrcode / barcode payload -->
     <div class="field jt jt-qrcode jt-barcode">
-      <label for="data">Data / URL</label>
-      <input id="data" name="data" placeholder="https://… or 12345678">
+      <label for="data">Daten / URL</label>
+      <input id="data" name="data" placeholder="https://… oder 12345678">
     </div>
 
     <!-- qrcode / barcode optional caption -->
     <div class="field jt jt-qrcode jt-barcode">
-      <label for="caption">Caption (optional)</label>
-      <input id="caption" name="text" placeholder="Human-readable text">
+      <label for="caption">Beschriftung (optional)</label>
+      <input id="caption" name="text" placeholder="Lesbarer Text">
     </div>
 
     <div class="row">
       <div class="field jt jt-text">
-        <label for="font_size">Font size (px, blank = auto-fit)</label>
+        <label for="font_size">Schriftgröße (px, leer = automatisch)</label>
         <input id="font_size" name="font_size" type="number" min="1" placeholder="auto">
       </div>
       <div class="field jt jt-text jt-markdown">
-        <label for="fit">Auto-fit</label>
+        <label for="fit">Automatische Anpassung</label>
         <select id="fit" name="fit">
-          <option value="fill">fill (grow to fill label)</option>
-          <option value="width">width (keep line breaks)</option>
+          <option value="fill">füllen (Etikett ausfüllen)</option>
+          <option value="width">Breite (Zeilenumbrüche beibehalten)</option>
         </select>
       </div>
       <div class="field jt jt-barcode">
-        <label for="barcode_type">Barcode type</label>
+        <label for="barcode_type">Barcode-Typ</label>
         <select id="barcode_type" name="barcode_type">
           <option value="128">Code 128</option>
           <option value="EAN13">EAN-13</option>
@@ -60,7 +60,7 @@
         </select>
       </div>
       <div class="field jt jt-qrcode">
-        <label for="ecc_level">QR error correction</label>
+        <label for="ecc_level">QR-Fehlerkorrektur</label>
         <select id="ecc_level" name="ecc_level">
           <option value="L">L (7%)</option>
           <option value="M" selected>M (15%)</option>
@@ -72,39 +72,39 @@
 
     <!-- file types -->
     <div class="field jt jt-png jt-pdf">
-      <label for="file">File</label>
+      <label for="file">Datei</label>
       <input id="file" name="file" type="file">
     </div>
     <div class="field jt jt-png jt-pdf">
-      <label for="image_fit">Scale to label</label>
+      <label for="image_fit">An Etikett anpassen</label>
       <select id="image_fit" name="image_fit">
-        <option value="fit">fit — whole image inside the label (may leave margins)</option>
-        <option value="fill">fill — cover the label (crops overflow)</option>
-        <option value="stretch">stretch — exact label size (ignores aspect ratio)</option>
-        <option value="original">original — keep image's own size</option>
+        <option value="fit">einpassen – ganzes Bild auf dem Etikett (ggf. mit Rand)</option>
+        <option value="fill">füllen – Etikett ganz bedecken (Überstand wird abgeschnitten)</option>
+        <option value="stretch">strecken – exakte Etikettengröße (Seitenverhältnis wird ignoriert)</option>
+        <option value="original">Original – eigene Bildgröße beibehalten</option>
       </select>
     </div>
     <div class="field jt jt-pdf">
-      <label for="page">Page (index or "all")</label>
+      <label for="page">Seite (Nummer ab 0 oder „all“)</label>
       <input id="page" name="page" value="0">
     </div>
 
     <!-- content rotation (same label format, content turned in 90° steps) -->
     <div class="field jt jt-text jt-markdown jt-png jt-pdf">
-      <label for="rotate">Rotate content</label>
+      <label for="rotate">Inhalt drehen</label>
       <select id="rotate" name="rotate">
-        <option value="0">0° (no rotation)</option>
-        <option value="90">90° clockwise</option>
-        <option value="180">180° (upside down)</option>
-        <option value="270">270° clockwise (90° counter-clockwise)</option>
+        <option value="0">0° (keine Drehung)</option>
+        <option value="90">90° im Uhrzeigersinn</option>
+        <option value="180">180° (auf dem Kopf)</option>
+        <option value="270">270° im Uhrzeigersinn (90° gegen den Uhrzeigersinn)</option>
       </select>
-      <div class="hint">Keeps the label size; turns the content and re-fits it to the rotated shape.</div>
+      <div class="hint">Behält die Etikettengröße bei; dreht den Inhalt und passt ihn an die gedrehte Form an.</div>
     </div>
 
     <hr style="border-color:var(--border);opacity:.4;margin:1rem 0">
 
     <div class="field">
-      <label for="profile">Label profile</label>
+      <label for="profile">Etikettenprofil</label>
       <select id="profile" onchange="applyProfile()">
         {% for p in profiles %}
         <option value="{{ loop.index0 }}"
@@ -114,7 +114,7 @@
           {{ p.name }} — {{ p.width_mm }}×{{ p.height_mm }} mm
         </option>
         {% endfor %}
-        <option value="custom">Custom…</option>
+        <option value="custom">Benutzerdefiniert…</option>
       </select>
       <div class="hint" id="profile-summary"></div>
     </div>
@@ -124,11 +124,11 @@
        then disabled (not sent) and the server uses the profile's configured one. #}
     <div class="row" id="custom-geometry" style="display:none">
       <div class="field">
-        <label for="label_width_mm">Width (mm)</label>
+        <label for="label_width_mm">Breite (mm)</label>
         <input id="label_width_mm" name="label_width_mm" type="number" min="1" value="{{ default_width_mm }}">
       </div>
       <div class="field">
-        <label for="label_height_mm">Height (mm)</label>
+        <label for="label_height_mm">Höhe (mm)</label>
         <input id="label_height_mm" name="label_height_mm" type="number" min="1" value="{{ default_height_mm }}">
       </div>
       <div class="field">
@@ -136,7 +136,7 @@
         <input id="dpi" name="dpi" type="number" min="1" value="{{ default_dpi }}">
       </div>
       <div class="field">
-        <label for="x_offset_mm">X offset (mm)</label>
+        <label for="x_offset_mm">X-Versatz (mm)</label>
         <input id="x_offset_mm" name="x_offset_mm" type="number" step="any"
                placeholder="auto" disabled>
       </div>
@@ -144,7 +144,7 @@
 
     <div class="row">
       <div class="field" style="flex:0 1 160px">
-        <label for="copies">Copies</label>
+        <label for="copies">Kopien</label>
         <input id="copies" name="copies" type="number" min="1" value="1">
       </div>
     </div>
@@ -152,13 +152,13 @@
     <div class="btns">
       <button type="button" class="primary"
               hx-post="/ui/print" hx-target="#print-result" hx-swap="innerHTML">
-        Print
+        Drucken
       </button>
       <button type="button"
               hx-post="/ui/preview" hx-target="#preview" hx-swap="innerHTML">
-        Preview
+        Vorschau
       </button>
-      <span class="htmx-indicator" style="align-self:center;color:var(--muted)">working…</span>
+      <span class="htmx-indicator" style="align-self:center;color:var(--muted)">wird bearbeitet…</span>
     </div>
   </form>
 
@@ -166,29 +166,29 @@
 </section>
 
 <section class="panel">
-  <h2>Preview</h2>
-  <div id="preview" class="preview-wrap">Press “Preview” to render the label.</div>
+  <h2>Vorschau</h2>
+  <div id="preview" class="preview-wrap">„Vorschau“ drücken, um das Etikett darzustellen.</div>
 </section>
 
 {% if homebox_enabled %}
 <section class="panel" id="homebox"
          hx-get="/ui/homebox" hx-trigger="load" hx-swap="innerHTML">
   <h2>Homebox</h2>
-  <div class="hint">Loading Homebox…</div>
+  <div class="hint">Homebox wird geladen…</div>
 </section>
 {% endif %}
 
 <section class="panel">
   <h2>Status</h2>
   <div id="status" hx-get="/ui/status" hx-trigger="load, every 8s" hx-swap="innerHTML">
-    <div class="hint">Loading status…</div>
+    <div class="hint">Status wird geladen…</div>
   </div>
 </section>
 
 <section class="panel">
-  <h2>Recent jobs</h2>
+  <h2>Letzte Aufträge</h2>
   <div id="jobs" hx-get="/ui/jobs" hx-trigger="load, every 3s, jobsChanged from:body" hx-swap="innerHTML">
-    <div class="hint">Loading jobs…</div>
+    <div class="hint">Aufträge werden geladen…</div>
   </div>
 </section>
 
@@ -214,7 +214,7 @@
     offset.disabled = !custom;
     const summary = document.getElementById('profile-summary');
     if (custom) {
-      summary.textContent = 'Blank X offset uses the printer default for that size.';
+      summary.textContent = 'Leerer X-Versatz verwendet den Drucker-Standard für diese Größe.';
       return;  // keep the last values as a starting point
     }
     document.getElementById('label_width_mm').value = opt.dataset.w;
@@ -223,7 +223,7 @@
     offset.value = opt.dataset.xoff;
     const x = parseFloat(opt.dataset.xoff) || 0;
     summary.textContent = opt.dataset.dpi + ' dpi' +
-      (x ? ' · X offset ' + (x > 0 ? '+' : '') + x + ' mm' : '');
+      (x ? ' · X-Versatz ' + (x > 0 ? '+' : '') + x + ' mm' : '');
   }
   document.addEventListener('DOMContentLoaded', () => { updateFields(); applyProfile(); });
 </script>

@@ -88,14 +88,14 @@ def test_settings_404_when_disabled(client):
 def test_settings_page_renders_when_enabled(client, settings_enabled):
     resp = client.get("/ui/settings")
     assert resp.status_code == 200
-    assert "Label defaults" in resp.text
-    assert "System info" in resp.text
+    assert "Etiketten" in resp.text
+    assert "Systeminformationen" in resp.text
 
 
 def test_settings_save_persists_and_reloads(client, settings_enabled):
     resp = client.post("/ui/settings", data={"DEFAULT_DPI": "300", "LOG_LEVEL": "INFO"})
     assert resp.status_code == 200
-    assert "Settings saved" in resp.text
+    assert "Einstellungen gespeichert" in resp.text
     assert get_config().DEFAULT_DPI == 300
     assert "DEFAULT_DPI" in get_setting_overrides()
 
@@ -133,7 +133,7 @@ def test_label_profiles_missing_dimension_rejected(client, settings_enabled):
         data={"lp_name": "x", "lp_width": "", "lp_height": "32", "lp_dpi": ""},
     )
     assert resp.status_code == 400
-    assert "width and height are required" in resp.text
+    assert "Breite und Höhe sind Pflicht" in resp.text
 
 
 def test_label_profiles_non_numeric_rejected(client, settings_enabled):
@@ -201,7 +201,7 @@ def test_add_login_user_and_protect(client, settings_enabled):
 def test_new_user_without_password_rejected(client, settings_enabled):
     resp = client.post("/ui/settings", data={"au_username": "bob", "au_password": ""})
     assert resp.status_code == 400
-    assert "set a password" in resp.text
+    assert "brauchen ein Passwort" in resp.text
 
 
 def test_blank_password_keeps_existing_hash(client, settings_enabled):

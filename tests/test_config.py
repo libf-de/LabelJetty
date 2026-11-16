@@ -68,9 +68,9 @@ def test_label_profiles_prepends_default():
         LABEL_PROFILES=[LabelProfile(name="DHL", width_mm=100, height_mm=50)],
     )
     profiles = cfg.get_label_profiles()
-    assert profiles[0].name == "Default"
+    assert profiles[0].name == "Standard"
     assert profiles[0].width_mm == 57
-    assert [p.name for p in profiles] == ["Default", "DHL"]
+    assert [p.name for p in profiles] == ["Standard", "DHL"]
 
 
 # --------------------------------------------------------------------------- #

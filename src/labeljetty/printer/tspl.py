@@ -263,21 +263,21 @@ class TSPLPrinter:
 
         errors: List[str] = []
         if status.head_opened:
-            errors.append("Print head open")
+            errors.append("Druckkopf offen")
         if status.paper_jam:
-            errors.append("Paper jam detected")
+            errors.append("Papierstau")
         if status.paper_empty:
-            errors.append("Paper/label out")
+            errors.append("Papier/Etiketten leer")
         if status.ribbon_empty:
-            errors.append("Ribbon out")
+            errors.append("Farbband leer")
         if status.paused:
-            errors.append("Printer paused")
+            errors.append("Drucker pausiert")
         if status.other_error and not errors:
-            errors.append("Unknown error")
+            errors.append("Unbekannter Fehler")
         if not status.ready and not errors:
-            errors.append("Printer not ready")
+            errors.append("Drucker nicht bereit")
 
-        return "; ".join(errors) if errors else "Unknown status"
+        return "; ".join(errors) if errors else "Unbekannter Status"
 
     # ------------------------------------------------------------ #
     # Convert PIL image → TSPL BITMAP command

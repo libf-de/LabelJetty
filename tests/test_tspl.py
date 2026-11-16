@@ -107,7 +107,7 @@ def test_is_ready_true_when_status_unavailable(monkeypatch):
 
 def test_get_error_message():
     printer, _ = make_printer(status_byte=0x01)  # head open
-    assert "head" in printer.get_error_message().lower()
+    assert "druckkopf" in printer.get_error_message().lower()
     ready, _ = make_printer(status_byte=0x00)
     assert ready.get_error_message() is None
 

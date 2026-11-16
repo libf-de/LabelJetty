@@ -1,15 +1,17 @@
+{% set status_label = {"queued": "wartend", "processing": "druckt", "done": "fertig", "failed": "fehlgeschlagen"} %}
+{% set type_label = {"png": "PNG", "pdf": "PDF", "text": "Text", "markdown": "Markdown", "barcode": "Barcode", "qrcode": "QR-Code"} %}
 {% if not jobs %}
-  <div class="hint">No jobs yet.</div>
+  <div class="hint">Noch keine Aufträge.</div>
 {% else %}
 <table class="jobs">
   <thead>
-    <tr><th>Type</th><th>Status</th><th>Copies</th><th>Created</th><th>Error</th></tr>
+    <tr><th>Art</th><th>Status</th><th>Kopien</th><th>Erstellt</th><th>Fehler</th></tr>
   </thead>
   <tbody>
     {% for j in jobs %}
     <tr>
-      <td>{{ j.job.job_type }}</td>
-      <td><span class="badge {{ j.status }}">{{ j.status }}</span></td>
+      <td>{{ type_label.get(j.job.job_type, j.job.job_type) }}</td>
+      <td><span class="badge {{ j.status }}">{{ status_label.get(j.status, j.status) }}</span></td>
       <td>{{ j.job.copies }}</td>
       <td>{{ j.job.created_at.strftime("%H:%M:%S") }}</td>
       <td>{{ j.job.error or "" }}</td>
