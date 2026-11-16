@@ -213,3 +213,6 @@ printjobs.sqlite
 *.sqlite
 /images/
 deploy/rpi/boot/custom.toml
+
+# Local compose overrides (machine-specific)
+docker-compose.override.yml
