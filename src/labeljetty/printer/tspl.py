@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import math
+import re
 from typing import List, Optional, Union, IO, Literal
 from PIL import Image, ImageDraw, ImageFont, _typing
 from labeljetty.printer.connection import TSPLPrinterConnectionUSB
@@ -11,6 +13,22 @@ DEFAULT_FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 # library) rather than in the persistence layer so the printer package stays
 # free of any internal dependency.
 JobType = Literal["png", "pdf", "text", "markdown", "barcode", "qrcode"]
+
+# Text lines some printers emit unprompted — progress reports such as
+# ``SSSGETPRINTING:DONE`` or ``Cmd error:<line>`` for rejected commands. They can
+# end up in the read buffer ahead of a status byte. Status bytes never start a
+# line with a letter (0x40+ isn't a valid flag combination), so these are safe
+# to strip.
+_PRINTER_TEXT_LINE = re.compile(rb"[A-Za-z][^\r\n]*(?:\r?\n|$)")
+
+
+def _status_byte(response: Optional[bytes]) -> Optional[int]:
+    """Extract the ``<ESC>!?`` status byte from a raw read, ignoring any
+    unsolicited text lines around it. ``None`` if no status byte is present."""
+    if not response:
+        return None
+    rest = _PRINTER_TEXT_LINE.sub(b"", response)
+    return rest[0] if rest else None
 
 
 class TSPLPrinterStatusMessage(BaseModel):
@@ -81,6 +99,7 @@ class TSPLPrinter:
         label_height_mm: int = 30,
         dpi: int = 203,
         dry_run_mode: bool = False,
+        x_offset_mm: float = 0.0,
     ):
         """_summary_
 
@@ -90,6 +109,10 @@ class TSPLPrinter:
             dpi (int, optional): _description_. Defaults to 203.
             connection (TSPLPrinterConnection | bool, optional): Set a known `usb.core.Device` connection for a specific printer or True if oyu want to auto connect to the first device we can find or false if you want to use `list_available_printers`.`set_printer`. Defaults to False.
             dry_run_mode (bool, optional): _description_. Defaults to False.
+            x_offset_mm (float, optional): Shift printed content horizontally by
+                this many mm (positive = right). TSPL's x=0 is the print head edge;
+                when the label sits further in (head wider than the stock) the
+                left of the content is cut off without it. Defaults to 0.
         """
 
         self.connection: TSPLPrinterConnectionUSB = connection
@@ -101,6 +124,9 @@ class TSPLPrinter:
         # Compute pixel size of the label
         self.width_px = int((label_width_mm / 25.4) * dpi)
         self.height_px = int((label_height_mm / 25.4) * dpi)
+
+        self.x_offset_mm: float = x_offset_mm or 0.0
+        self.x_offset_px: int = round((self.x_offset_mm / 25.4) * dpi)
 
     # ------------------------------------------------------------ #
     #  Low-level send function
@@ -178,10 +204,16 @@ class TSPLPrinter:
 
         # Must be sent raw (no trailing newline).
         response = self.connection.query(b"\x1b!?", raw=True)
+        # Some clones don't treat <ESC>!? as a real-time command: it stays in
+        # their line buffer and corrupts the next command (the printer answers
+        # "Cmd error:\x1b!?SIZE ..." and drops the SIZE). A bare line ending
+        # flushes it; TSPL ignores empty lines, so this is harmless elsewhere.
+        self.connection.send(b"\r\n", raw=True)
 
-        if not response:
+        status_byte = _status_byte(response)
+        if status_byte is None:
             return None
-        return TSPLPrinterStatusMessage.from_raw_response(response=response)
+        return TSPLPrinterStatusMessage.from_raw_response(response=status_byte)
 
     def is_ready(self) -> bool:
         """
@@ -267,8 +299,32 @@ class TSPLPrinter:
         return header + pixels + b"\n"
 
     def _set_size(self):
-        """Send the SIZE command for the configured label dimensions."""
-        self._send(f"SIZE {self.width_mm} mm,{self.height_mm} mm\n")
+        """Send the SIZE command for the configured label dimensions.
+
+        A positive horizontal offset widens SIZE by the offset (rounded up to
+        whole mm) so the shifted content isn't clipped at the right edge."""
+        width_mm = self.width_mm
+        if self.x_offset_mm > 0:
+            width_mm = math.ceil(self.width_mm + self.x_offset_mm)
+        self._send(f"SIZE {width_mm} mm,{self.height_mm} mm\n")
+
+    def _native_x(self, x: int) -> int:
+        """Apply the horizontal offset to the x of a native TSPL command."""
+        return max(0, x + self.x_offset_px)
+
+    def _apply_x_offset(self, img: Image.Image, x: int) -> tuple[Image.Image, int]:
+        """Apply the horizontal offset to a 1-bit bitmap placed at ``x``.
+
+        Positive offsets just move the BITMAP origin right. BITMAP can't start
+        left of the head (x < 0), so negative offsets crop the bitmap's left edge
+        instead — the same result as the vendor driver's raster shift."""
+        x += self.x_offset_px
+        if x >= 0:
+            return img, x
+        crop = -x
+        if crop >= img.width:
+            return Image.new("1", (8, img.height), 1), 0
+        return self._prepare_1bit(img.crop((crop, 0, img.width, img.height))), 0
 
     def _prepare_1bit(self, img: Image.Image) -> Image.Image:
         """Dither an image to 1-bit and pad its width to a multiple of 8.
@@ -391,6 +447,7 @@ class TSPLPrinter:
         (SIZE → CLS → BITMAP → PRINT). Reused by every image-based print method.
         """
         img = self._prepare_1bit(img)
+        img, x = self._apply_x_offset(img, x)
         self._set_size()
         self.cls()
         self._send(self._bitmap_tspl(img, x, y))
@@ -937,7 +994,7 @@ class TSPLPrinter:
         self._set_size()
         self.cls()
         self._send(
-            f'BARCODE {x},{y},"{barcode_type}",{height},{human_readable},'
+            f'BARCODE {self._native_x(x)},{y},"{barcode_type}",{height},{human_readable},'
             f'{rotation},{narrow_bar},{wide_bar},"{data}"\n'
         )
         self.print_label(copies=copies)
@@ -1129,11 +1186,11 @@ class TSPLPrinter:
         # Print text at top if provided
         if text:
             text_y = 10
-            self._send(f'TEXT 10,{text_y},"3",0,1,1,"{text}"\n')
+            self._send(f'TEXT {self._native_x(10)},{text_y},"3",0,1,1,"{text}"\n')
 
         # Print barcode below text
         barcode_y = text_height + 10 if text else int(self.height_px * 0.1)
-        barcode_x = int(self.width_px * 0.1)
+        barcode_x = self._native_x(int(self.width_px * 0.1))
 
         self._send(
             f'BARCODE {barcode_x},{barcode_y},"{barcode_type}",{barcode_height},1,'

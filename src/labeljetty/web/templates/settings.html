@@ -71,7 +71,7 @@
       {% elif f.widget == 'label_profiles' %}
         <table class="profiles" data-default-dpi="{{ default_dpi }}">
           <thead>
-            <tr><th>Name</th><th>Width&nbsp;mm</th><th>Height&nbsp;mm</th><th>DPI&nbsp;<span class="hint">(opt)</span></th><th></th></tr>
+            <tr><th>Name</th><th>Width&nbsp;mm</th><th>Height&nbsp;mm</th><th>DPI&nbsp;<span class="hint">(opt)</span></th><th>X&nbsp;offset&nbsp;mm&nbsp;<span class="hint">(opt)</span></th><th></th></tr>
           </thead>
           <tbody>
             {% for r in f.rows %}
@@ -80,13 +80,15 @@
               <td><input name="lp_width" type="number" min="1" value="{{ r.width_mm }}"></td>
               <td><input name="lp_height" type="number" min="1" value="{{ r.height_mm }}"></td>
               <td><input name="lp_dpi" type="number" min="1" value="{{ r.dpi if r.dpi is not none else '' }}"></td>
+              <td><input name="lp_xoff" type="number" step="any" value="{{ r.x_offset_mm if r.x_offset_mm is not none else '' }}"></td>
               <td><button type="button" class="row-del" title="Remove" onclick="this.closest('tr').remove()">✕</button></td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
         <button type="button" class="add-row" onclick="addProfileRow(this)">+ Add profile</button>
-        <div class="hint">New or edited profiles only take effect after you press <strong>Save settings</strong> below.</div>
+        <div class="hint">New or edited profiles only take effect after you press <strong>Save settings</strong> below.
+          <em>X offset</em> shifts printed content right (negative: left) for that stock; leave it blank to use the printer-wide horizontal offset below.</div>
 
       {% elif f.widget == 'auth_users' %}
         <table class="profiles auth-users">
@@ -106,6 +108,10 @@
 
       {% elif f.widget == 'number' %}
         <input type="number" id="{{ f.name }}" name="{{ f.name }}"
+               value="{{ f.value }}" {% if f.locked %}disabled{% endif %}>
+
+      {% elif f.widget == 'decimal' %}
+        <input type="number" step="any" id="{{ f.name }}" name="{{ f.name }}"
                value="{{ f.value }}" {% if f.locked %}disabled{% endif %}>
 
       {% else %}
@@ -134,6 +140,7 @@
         '<td><input name="lp_width" type="number" min="1"></td>' +
         '<td><input name="lp_height" type="number" min="1"></td>' +
         '<td><input name="lp_dpi" type="number" min="1" placeholder="' + dpi + '"></td>' +
+        '<td><input name="lp_xoff" type="number" step="any"></td>' +
         '<td><button type="button" class="row-del" title="Remove" onclick="this.closest(\'tr\').remove()">✕</button></td>';
       table.querySelector('tbody').appendChild(tr);
     }

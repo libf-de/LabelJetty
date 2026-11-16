@@ -14,6 +14,7 @@ Examples (run from the repository root):
 
     uv run labeljetty-testbench --dry-run pattern
     uv run labeljetty-testbench --width-mm 50 --height-mm 30 pattern
+    uv run labeljetty-testbench --host 10.101.3.79 --x-offset-mm 4 pattern
     uv run labeljetty-testbench text "Hello world"
     uv run labeljetty-testbench status
 """
@@ -47,7 +48,11 @@ def build_printer(args) -> TSPLPrinter:
 
         config = Config()
         if args.usb:
+            config.PRINTER_CONNECTION = "usb"
             config.PRINTER_USB = args.usb
+        if args.host:
+            config.PRINTER_CONNECTION = "network"
+            config.PRINTER_HOST = args.host
         connection = config.get_printer_connection()
         connection.connect()
 
@@ -57,7 +62,20 @@ def build_printer(args) -> TSPLPrinter:
         label_height_mm=args.height_mm,
         dpi=args.dpi,
         dry_run_mode=args.dry_run,
+        x_offset_mm=_x_offset(args),
     )
+
+
+def _x_offset(args) -> float:
+    """--x-offset-mm, else the offset the config resolves for this geometry."""
+    if args.x_offset_mm is not None:
+        return args.x_offset_mm
+    try:
+        from labeljetty.config import Config
+
+        return Config().resolve_x_offset_mm(args.width_mm, args.height_mm, args.dpi)
+    except Exception:
+        return 0.0
 
 
 def _read_loop(connection, attempts: int, timeout: int, read_len: int):
@@ -180,6 +198,17 @@ def main(argv=None) -> int:
         "--usb",
         default=None,
         help="Override PRINTER_USB selector (ignored in --dry-run).",
+    )
+    parser.add_argument(
+        "--host",
+        default=None,
+        help="Print to a network printer at this IP/hostname instead (port PRINTER_PORT).",
+    )
+    parser.add_argument(
+        "--x-offset-mm",
+        type=float,
+        default=None,
+        help="Horizontal offset in mm, positive = right (default: from the config).",
     )
 
     sub = parser.add_subparsers(dest="command", required=True)

@@ -3,12 +3,13 @@ import os
 import sqlite3
 from typing import TYPE_CHECKING, Any, Dict, List, Self
 from pathlib import Path
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
 from typing import Literal, Optional
 
 if TYPE_CHECKING:
     from labeljetty.printer.connection import TSPLPrinterConnectionUSB
+    from labeljetty.printer.network import TSPLPrinterConnectionNetwork
 
 # `.env` is looked up relative to the current working directory (the repo root,
 # per the README) — the override env var takes precedence. It is intentionally
@@ -48,12 +49,17 @@ def _ui(
 
 
 class LabelProfile(BaseModel):
-    """A named label stock (width × height in mm), selectable in the web UI."""
+    """A named label stock (width × height in mm), selectable in the web UI.
+
+    ``x_offset_mm`` shifts the printed content horizontally for this stock
+    (positive = right). Leave it unset to fall back to the printer-wide offset
+    (see ``Config.resolve_x_offset_mm``)."""
 
     name: str
     width_mm: int
     height_mm: int
     dpi: Optional[int] = None
+    x_offset_mm: Optional[float] = None
 
 
 class AuthToken(BaseModel):
@@ -163,6 +169,30 @@ class Config(BaseSettings):
             "Label defaults", label="Label profiles", widget="label_profiles"
         ),
     )
+    # Horizontal alignment. TSPL's x=0 is the edge of the print head, not of the
+    # label — on printers whose head is wider than the stock (labels centered by
+    # the media guides) content starting at x=0 lands left of the label. The
+    # vendor CUPS driver exposes the same knob as "Horizontal Offset".
+    PRINTER_MAX_WIDTH_MM: Optional[float] = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Maximum print width of the printer (print head width) in mm. When set, "
+            "labels are assumed to be centered by the media guides and the "
+            "horizontal offset is calculated automatically as (max width − label "
+            "width) / 2. A label profile's own X offset still takes precedence."
+        ),
+        json_schema_extra=_ui("Label defaults", label="Printer max. print width (mm)"),
+    )
+    LABEL_X_OFFSET_MM: float = Field(
+        default=0.0,
+        description=(
+            "Horizontal offset in mm for labels whose profile doesn't define one "
+            "(positive moves content right). Added on top of the automatic offset "
+            "when the printer max. print width is set, so it doubles as a fine-tune."
+        ),
+        json_schema_extra=_ui("Label defaults", label="Horizontal offset (mm)"),
+    )
 
     # --- Settings UI (the admin config page itself) ------------------------- #
     # The page is OFF by default: in AUTH_MODE=open anyone reaching the box could
@@ -250,6 +280,50 @@ class Config(BaseSettings):
             )
         return self
 
+    @model_validator(mode="after")
+    def validate_printer_connection(self) -> Self:
+        """A network printer needs somewhere to connect to."""
+        if self.PRINTER_CONNECTION == "network" and not (
+            self.PRINTER_HOST or self.PRINTER_MAC
+        ):
+            raise ValueError(
+                "PRINTER_CONNECTION=network needs PRINTER_HOST (the printer's IP or "
+                "hostname) and/or PRINTER_MAC (to find it via ARP)."
+            )
+        return self
+
+    @field_validator("PRINTER_MAC")
+    @classmethod
+    def normalize_printer_mac(cls, value: Optional[str]) -> Optional[str]:
+        if not value:
+            return None
+        from labeljetty.printer.netdiscovery import normalize_mac
+
+        return normalize_mac(value)
+
+    def resolve_x_offset_mm(
+        self, width_mm: int, height_mm: int, dpi: Optional[int] = None
+    ) -> float:
+        """Horizontal offset (mm) for a job on ``width_mm × height_mm`` stock.
+
+        Jobs only carry their geometry, so the offset is looked up here at print
+        time: the first label profile with matching dimensions (and DPI, if the
+        profile pins one) that defines ``x_offset_mm`` wins. Otherwise the
+        printer-wide ``LABEL_X_OFFSET_MM`` applies, on top of the automatic
+        centering offset when ``PRINTER_MAX_WIDTH_MM`` is set."""
+        for profile in self.LABEL_PROFILES:
+            if (
+                profile.x_offset_mm is not None
+                and profile.width_mm == width_mm
+                and profile.height_mm == height_mm
+                and (profile.dpi is None or dpi is None or profile.dpi == dpi)
+            ):
+                return profile.x_offset_mm
+        offset = self.LABEL_X_OFFSET_MM
+        if self.PRINTER_MAX_WIDTH_MM:
+            offset += max(0.0, (self.PRINTER_MAX_WIDTH_MM - width_mm) / 2)
+        return offset
+
     def get_label_profiles(self) -> List[LabelProfile]:
         """Configured profiles, preceded by the server-default geometry."""
         default = LabelProfile(
@@ -283,10 +357,57 @@ class Config(BaseSettings):
         ],
     )
 
-    def get_printer_connection(self) -> "TSPLPrinterConnectionUSB":
-        """Returns a printer connection using the configured identifier, or
-        auto-detects a connected TSPL printer when ``PRINTER_USB`` is unset."""
+    # Network printer (raw TCP, "JetDirect"/port 9100) — used instead of USB when
+    # PRINTER_CONNECTION=network.
+    PRINTER_CONNECTION: Literal["usb", "network"] = Field(
+        default="usb",
+        description=(
+            "How to reach the printer: 'usb' (PRINTER_USB / auto-detect) or "
+            "'network' (raw TCP to PRINTER_HOST:PRINTER_PORT)."
+        ),
+        json_schema_extra=_ui("Printer", label="Connection"),
+    )
+    PRINTER_HOST: Optional[str] = Field(
+        default=None,
+        description=(
+            "IP address or hostname of a network printer. Optional when "
+            "PRINTER_MAC is set — the IP is then looked up via ARP."
+        ),
+        examples=["10.101.3.79", "labelprinter.lan"],
+        json_schema_extra=_ui("Printer", label="Network printer host"),
+    )
+    PRINTER_PORT: int = Field(
+        default=9100,
+        description="TCP port of a network printer (raw printing, usually 9100).",
+        json_schema_extra=_ui("Printer", label="Network printer port"),
+    )
+    PRINTER_MAC: Optional[str] = Field(
+        default=None,
+        description=(
+            "MAC address of a network printer. When set and the printer isn't "
+            "reachable at its last known IP (e.g. a new DHCP lease), LabelJetty "
+            "scans the local subnet and finds the new IP via the ARP table; the "
+            "IP found is remembered until restart. Requires the same layer-2 "
+            "network — in Docker use network_mode: host."
+        ),
+        examples=["aa:bb:cc:dd:ee:ff"],
+        json_schema_extra=_ui("Printer", label="Network printer MAC address"),
+    )
+
+    def get_printer_connection(
+        self,
+    ) -> "TSPLPrinterConnectionUSB | TSPLPrinterConnectionNetwork":
+        """Returns a printer connection for the configured transport: a network
+        connection when ``PRINTER_CONNECTION=network``, else USB using the
+        configured identifier (auto-detecting when ``PRINTER_USB`` is unset)."""
         from labeljetty.printer.connection import TSPLPrinterConnectionUSB
+
+        if self.PRINTER_CONNECTION == "network":
+            from labeljetty.printer.network import TSPLPrinterConnectionNetwork
+
+            return TSPLPrinterConnectionNetwork(
+                host=self.PRINTER_HOST, port=self.PRINTER_PORT, mac=self.PRINTER_MAC
+            )
 
         usb_id = self.PRINTER_USB
 

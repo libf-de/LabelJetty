@@ -9,6 +9,8 @@ Compose `environment:` block, pass `-e KEY=value`, or mount a file with `--env-f
 
 - [What you must / should set](#what-you-must--should-set)
 - [`PRINTER_USB` selector forms](#printer_usb-selector-forms)
+- [Network printers](#network-printers)
+- [Label profiles and horizontal offset](#label-profiles-and-horizontal-offset)
 - [Full reference](#full-reference)
 - [Settings via the web UI](#settings-via-the-web-ui)
 - [Status reading is optional](#status-reading-is-optional)
@@ -51,11 +53,73 @@ PRINTER_USB=vid:2d37:pid:62de
 > **USB auto-discovery** detects common printers without setting `PRINTER_USB` by hand -
 > just leave it unset. Run `labeljetty-testbench list-printers` to see what it finds.
 
+## Network printers
+
+Printers with an Ethernet/Wi-Fi port that accept raw TSPL on TCP port 9100 can be used
+instead of USB:
+
+```sh
+PRINTER_CONNECTION=network
+PRINTER_HOST=10.101.3.79        # IP or hostname
+PRINTER_PORT=9100               # default
+PRINTER_MAC=c8:f4:8d:40:58:26   # optional - see below
+```
+
+**Finding the printer again by MAC address.** If `PRINTER_MAC` is set and the printer
+can't be reached at `PRINTER_HOST` (or that IP now answers with a different MAC, e.g. after
+a new DHCP lease), LabelJetty looks the MAC up in the kernel's ARP table; if it isn't
+there, it sends one tiny UDP datagram to every address of the local subnet(s) (at most a
+/24 per interface) so the printer answers ARP, then reads the table again. The IP found is
+remembered until LabelJetty restarts. With `PRINTER_MAC` set, `PRINTER_HOST` is optional.
+
+- ARP only works on the **same layer-2 network** - the printer must be on a subnet the host
+  is directly attached to (no router in between).
+- In Docker, the container must use **`network_mode: host`**: on the default bridge network
+  the container's ARP table only ever contains the Docker gateway. A fixed `PRINTER_HOST`
+  works on either network mode.
+- Find the MAC on the printer's self-test/config label, in your router's DHCP list, or with
+  `ip neigh show <printer-ip>` after pinging it.
+
+## Label profiles and horizontal offset
+
+`LABEL_PROFILES` defines any number of named label stocks that appear in the web UI's
+profile picker (next to the always-present *Default* from `DEFAULT_LABEL_*`, and a
+*Custom…* entry for one-off sizes):
+
+```sh
+LABEL_PROFILES='[{"name":"DHL 100x150","width_mm":100,"height_mm":150,"x_offset_mm":4},
+                 {"name":"Address 100x50","width_mm":100,"height_mm":50},
+                 {"name":"Homebox","width_mm":57,"height_mm":32,"dpi":203}]'
+```
+
+**Why an offset?** TSPL measures x=0 from the edge of the *print head*, not of the label.
+When the head is wider than your stock and the media guides center the labels, content
+starting at x=0 begins left of the label and is cut off. The vendor drivers expose the
+same correction as "Horizontal Offset".
+
+Pick one of two ways to configure it:
+
+1. **Explicit offset** - `x_offset_mm` per profile (positive moves content right), and/or
+   `LABEL_X_OFFSET_MM` for every label without a profile offset.
+2. **Automatic** - set `PRINTER_MAX_WIDTH_MM` to the printer's maximum print width (head
+   width, e.g. `108` for a 4.25" head); the offset is then `(max width - label width) / 2`
+   for any label size. `LABEL_X_OFFSET_MM` is added on top as a fine-tune.
+
+A profile's `x_offset_mm` always wins (matched by width/height, and DPI if the profile
+pins one); a print job may also send its own `x_offset_mm` (the UI does for *Custom…*).
+To measure the offset, print the ruler pattern and read off how many mm are missing on
+the left: `labeljetty-testbench --width-mm 100 --height-mm 150 pattern`, then retry with
+`--x-offset-mm <n>` until the border sits flush.
+
 ## Full reference
 
 | Variable | Default | Description |
 | --- | --- | --- |
+| `PRINTER_CONNECTION` | `usb` | `usb` or `network` - see [Network printers](#network-printers) |
 | `PRINTER_USB` | *(unset → auto-detect)* | Which USB printer to use; unset auto-detects (see [forms above](#printer_usb-selector-forms)) |
+| `PRINTER_HOST` | *(unset)* | IP/hostname of a network printer |
+| `PRINTER_PORT` | `9100` | TCP port of a network printer |
+| `PRINTER_MAC` | *(unset)* | MAC of a network printer; enables re-finding it via ARP when its IP changes |
 | `SERVER_LISTENING_HOST` | `localhost` | API bind host (use `0.0.0.0` to expose on the LAN) |
 | `SERVER_LISTENING_PORT` | `8888` | API port |
 | `AUTH_MODE` | `open` | `open` (no auth) or `protected` - see [Authentication](advanced-usage.md#authentication) |
@@ -72,7 +136,9 @@ PRINTER_USB=vid:2d37:pid:62de
 | `DEFAULT_LABEL_WIDTH_MM` | `100` | Default label width when a job doesn't specify one |
 | `DEFAULT_LABEL_HEIGHT_MM` | `30` | Default label height |
 | `DEFAULT_DPI` | `203` | Default printer resolution |
-| `LABEL_PROFILES` | `[]` | Named label sizes for the UI, e.g. `[{"name":"Homebox","width_mm":57,"height_mm":32}]` |
+| `LABEL_PROFILES` | `[]` | Named label sizes for the UI, e.g. `[{"name":"Homebox","width_mm":57,"height_mm":32,"x_offset_mm":1.5}]` (`dpi`, `x_offset_mm` optional) |
+| `PRINTER_MAX_WIDTH_MM` | *(unset)* | Printer max. print width; enables the automatic horizontal offset `(max - label width) / 2` |
+| `LABEL_X_OFFSET_MM` | `0` | Horizontal offset (mm, positive = right) for labels without a profile offset; added to the automatic offset |
 | `HOMEBOX_ENABLED` | `false` | Enable the Homebox module (also needs `HOMEBOX_URL` + `HOMEBOX_API_KEY`) |
 | `HOMEBOX_URL` | *(unset)* | Base URL of your Homebox server (v0.26+, entity-merged API) |
 | `HOMEBOX_API_KEY` | *(unset)* | Homebox API key (`hb_...`) for entity search and labelmaker |

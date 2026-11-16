@@ -109,14 +109,20 @@
         {% for p in profiles %}
         <option value="{{ loop.index0 }}"
                 data-w="{{ p.width_mm }}" data-h="{{ p.height_mm }}"
-                data-dpi="{{ p.dpi or default_dpi }}">
+                data-dpi="{{ p.dpi or default_dpi }}"
+                data-xoff="{{ '%g'|format(x_offsets[loop.index0]) }}">
           {{ p.name }} — {{ p.width_mm }}×{{ p.height_mm }} mm
         </option>
         {% endfor %}
+        <option value="custom">Custom…</option>
       </select>
+      <div class="hint" id="profile-summary"></div>
     </div>
 
-    <div class="row">
+    {# Geometry inputs: only shown for "Custom". For a profile they stay hidden
+       but enabled, so the profile's size/DPI are still submitted; the offset is
+       then disabled (not sent) and the server uses the profile's configured one. #}
+    <div class="row" id="custom-geometry" style="display:none">
       <div class="field">
         <label for="label_width_mm">Width (mm)</label>
         <input id="label_width_mm" name="label_width_mm" type="number" min="1" value="{{ default_width_mm }}">
@@ -130,6 +136,14 @@
         <input id="dpi" name="dpi" type="number" min="1" value="{{ default_dpi }}">
       </div>
       <div class="field">
+        <label for="x_offset_mm">X offset (mm)</label>
+        <input id="x_offset_mm" name="x_offset_mm" type="number" step="any"
+               placeholder="auto" disabled>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field" style="flex:0 1 160px">
         <label for="copies">Copies</label>
         <input id="copies" name="copies" type="number" min="1" value="1">
       </div>
@@ -193,10 +207,24 @@
   function applyProfile() {
     const opt = document.getElementById('profile').selectedOptions[0];
     if (!opt) return;
+    const custom = opt.value === 'custom';
+    const offset = document.getElementById('x_offset_mm');
+    document.getElementById('custom-geometry').style.display = custom ? '' : 'none';
+    // Custom sends its own offset (blank = auto); a profile uses its configured one.
+    offset.disabled = !custom;
+    const summary = document.getElementById('profile-summary');
+    if (custom) {
+      summary.textContent = 'Blank X offset uses the printer default for that size.';
+      return;  // keep the last values as a starting point
+    }
     document.getElementById('label_width_mm').value = opt.dataset.w;
     document.getElementById('label_height_mm').value = opt.dataset.h;
     document.getElementById('dpi').value = opt.dataset.dpi;
+    offset.value = opt.dataset.xoff;
+    const x = parseFloat(opt.dataset.xoff) || 0;
+    summary.textContent = opt.dataset.dpi + ' dpi' +
+      (x ? ' · X offset ' + (x > 0 ? '+' : '') + x + ' mm' : '');
   }
-  document.addEventListener('DOMContentLoaded', updateFields);
+  document.addEventListener('DOMContentLoaded', () => { updateFields(); applyProfile(); });
 </script>
 {% endblock %}

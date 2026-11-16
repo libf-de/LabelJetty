@@ -64,6 +64,10 @@ def _base_context(request: Request) -> dict:
         "default_width_mm": config.DEFAULT_LABEL_WIDTH_MM,
         "default_height_mm": config.DEFAULT_LABEL_HEIGHT_MM,
         "default_dpi": config.DEFAULT_DPI,
+        "x_offsets": [
+            config.resolve_x_offset_mm(p.width_mm, p.height_mm, p.dpi or config.DEFAULT_DPI)
+            for p in config.get_label_profiles()
+        ],
         "homebox_enabled": config.homebox_configured(),
         "auth_enabled": config.auth_enabled(),
         "settings_ui_enabled": config.SETTINGS_UI_ENABLED,
@@ -264,15 +268,26 @@ async def ui_print(
     label_width_mm: Annotated[Optional[int], Form()] = None,
     label_height_mm: Annotated[Optional[int], Form()] = None,
     dpi: Annotated[Optional[int], Form()] = None,
+    x_offset_mm: Annotated[Optional[str], Form()] = None,
     copies: Annotated[int, Form()] = 1,
     file: Annotated[Optional[UploadFile], File()] = None,
 ):
     from labeljetty.web.api import LabelOptions
 
+    # Blank = use the configured offset; accept a decimal comma too.
+    raw_offset = (x_offset_mm or "").strip().replace(",", ".")
+    try:
+        offset = float(raw_offset) if raw_offset else None
+    except ValueError:
+        return templates.TemplateResponse(
+            "_print_result.html",
+            {"request": request, "error": "Horizontal offset must be a number."},
+        )
     opts = LabelOptions(
         label_width_mm=label_width_mm,
         label_height_mm=label_height_mm,
         dpi=dpi,
+        x_offset_mm=offset,
         copies=copies,
     )
     params = _build_params(
@@ -576,7 +591,7 @@ async def ui_status(
             "printer_status": printer_status,
             "printer_error": printer_error,
             "printer_info": printer_info,
-            "autodetected": not config.PRINTER_USB,
+            "autodetected": config.PRINTER_CONNECTION == "usb" and not config.PRINTER_USB,
         },
     )
 
@@ -637,6 +652,8 @@ def _field_widget(name: str, ui: dict) -> tuple[str, list]:
         return "select", list(get_args(ann))
     if ann is int:
         return "number", []
+    if ann is float:
+        return "decimal", []
     return "text", []
 
 
@@ -776,11 +793,13 @@ async def ui_settings_save(
         if widget == "checkbox":
             overrides[name] = name in form
         elif widget == "label_profiles":
-            # Parallel-array row editor: lp_name[]/lp_width[]/lp_height[]/lp_dpi[].
+            # Parallel-array row editor:
+            # lp_name[]/lp_width[]/lp_height[]/lp_dpi[]/lp_xoff[].
             names = form.getlist("lp_name")
             widths = form.getlist("lp_width")
             heights = form.getlist("lp_height")
             dpis = form.getlist("lp_dpi")
+            xoffs = form.getlist("lp_xoff")
             profiles = []
             for i, pname in enumerate(names):
                 pname = pname.strip()
@@ -789,13 +808,16 @@ async def ui_settings_save(
                 w = (widths[i] if i < len(widths) else "").strip()
                 h = (heights[i] if i < len(heights) else "").strip()
                 d = (dpis[i] if i < len(dpis) else "").strip()
+                xo = (xoffs[i] if i < len(xoffs) else "").strip()
                 if not w or not h:
                     field_errors.append(f"Label profile '{pname}': width and height are required")
                     continue
                 row = {"name": pname, "width_mm": w, "height_mm": h}
                 if d:
                     row["dpi"] = d
-                profiles.append(row)  # ints validated by the model below
+                if xo:
+                    row["x_offset_mm"] = xo
+                profiles.append(row)  # numbers validated by the model below
             overrides[name] = profiles
         elif widget == "printer_select":
             choice = str(form.get("PRINTER_USB_choice", "")).strip()
@@ -837,6 +859,17 @@ async def ui_settings_save(
                 continue  # leave to env/default
             try:
                 overrides[name] = int(raw)
+            except ValueError:
+                field_errors.append(f"{ui.get('label') or name}: must be a number")
+        elif widget == "decimal":
+            raw = str(form.get(name, "")).strip().replace(",", ".")
+            if raw == "":
+                _, optional = _unwrap_optional(field.annotation)
+                if optional:
+                    overrides[name] = None
+                continue  # required field left blank → env/default
+            try:
+                overrides[name] = float(raw)
             except ValueError:
                 field_errors.append(f"{ui.get('label') or name}: must be a number")
         else:  # text / select

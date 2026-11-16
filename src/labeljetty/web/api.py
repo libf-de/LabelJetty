@@ -48,6 +48,11 @@ class LabelOptions(BaseModel):
         default=None, description="Override label height in mm (else server default)."
     )
     dpi: Optional[int] = Field(default=None, description="Override DPI.")
+    x_offset_mm: Optional[float] = Field(
+        default=None,
+        description="Horizontal offset in mm (positive = right). Omit to use the "
+        "offset configured for this label size (profile / printer default).",
+    )
     copies: int = Field(default=1, ge=1)
 
 
@@ -129,9 +134,13 @@ def _enqueue(
 ) -> PrintJob:
     """Create + persist a print job; the worker picks it up from the DB."""
     _require_worker_running()
+    params = dict(params or {})
+    if opts is not None and opts.x_offset_mm is not None:
+        # Carried in params (JSON) rather than a column: no DB migration needed.
+        params["x_offset_mm"] = opts.x_offset_mm
     job = PrintJob(
         job_type=job_type,
-        params=params or {},
+        params=params,
         input_file_name=input_file_name,
         label_width_mm=opts.label_width_mm if opts else None,
         label_height_mm=opts.label_height_mm if opts else None,
@@ -157,6 +166,7 @@ async def print_png(
     label_width_mm: Annotated[Optional[int], Form()] = None,
     label_height_mm: Annotated[Optional[int], Form()] = None,
     dpi: Annotated[Optional[int], Form()] = None,
+    x_offset_mm: Annotated[Optional[float], Form()] = None,
     copies: Annotated[int, Form()] = 1,
 ) -> PrintJob:
     filename = _store_upload(file, ".png")
@@ -164,6 +174,7 @@ async def print_png(
         label_width_mm=label_width_mm,
         label_height_mm=label_height_mm,
         dpi=dpi,
+        x_offset_mm=x_offset_mm,
         copies=copies,
     )
     return _enqueue(
@@ -181,6 +192,7 @@ async def print_pdf(
     label_width_mm: Annotated[Optional[int], Form()] = None,
     label_height_mm: Annotated[Optional[int], Form()] = None,
     dpi: Annotated[Optional[int], Form()] = None,
+    x_offset_mm: Annotated[Optional[float], Form()] = None,
     copies: Annotated[int, Form()] = 1,
 ) -> PrintJob:
     filename = _store_upload(file, ".pdf")
@@ -188,6 +200,7 @@ async def print_pdf(
         label_width_mm=label_width_mm,
         label_height_mm=label_height_mm,
         dpi=dpi,
+        x_offset_mm=x_offset_mm,
         copies=copies,
     )
     # "all" or a page index
@@ -395,6 +408,9 @@ async def printer_status(
 
 
 class PrinterInfoResponse(BaseModel):
+    transport: Literal["usb", "network"] = Field(
+        default="usb", description="How the printer is connected."
+    )
     autodetected: bool = Field(
         description="True if the device was auto-detected (PRINTER_USB unset) "
         "rather than pinned to an explicit selector."
@@ -404,11 +420,15 @@ class PrinterInfoResponse(BaseModel):
         description="The configured PRINTER_USB value, or null when auto-detecting.",
     )
     selector: str = Field(
-        description="The vid:..:pid:.. selector that pins this exact device — "
-        "set it as PRINTER_USB to stop relying on auto-detection."
+        description="USB: the vid:..:pid:.. selector that pins this exact device — "
+        "set it as PRINTER_USB to stop relying on auto-detection. Network: host:port."
     )
-    vendor_id: str = Field(description="USB vendor id (hex, e.g. '2d37').")
-    product_id: str = Field(description="USB product id (hex, e.g. '62de').")
+    vendor_id: Optional[str] = Field(
+        default=None, description="USB vendor id (hex, e.g. '2d37')."
+    )
+    product_id: Optional[str] = Field(
+        default=None, description="USB product id (hex, e.g. '62de')."
+    )
     bus: Optional[int] = Field(default=None, description="USB bus number.")
     address: Optional[int] = Field(default=None, description="USB device address.")
     port_path: Optional[str] = Field(
@@ -426,15 +446,31 @@ class PrinterInfoResponse(BaseModel):
     known_vendor: Optional[str] = Field(
         default=None, description="Label for a recognised TSPL vendor, if matched."
     )
+    host: Optional[str] = Field(
+        default=None, description="Network: IP/hostname the printer is reached at."
+    )
+    port: Optional[int] = Field(default=None, description="Network: TCP port.")
+    mac: Optional[str] = Field(
+        default=None, description="Network: configured MAC address, if any."
+    )
+    configured_host: Optional[str] = Field(
+        default=None, description="Network: the configured PRINTER_HOST."
+    )
+    rediscovered: Optional[bool] = Field(
+        default=None,
+        description="Network: True if the printer was found at a different IP "
+        "than configured (looked up via its MAC address).",
+    )
 
 
 @fast_api_router.get("/printer/info", tags=["Status"])
 async def printer_info(
     access: Annotated[bool, Depends(require_access)],
 ) -> PrinterInfoResponse:
-    """USB facts about the selected printer. Resolves the device (running
+    """Facts about the selected printer. For USB, resolves the device (running
     auto-discovery when PRINTER_USB is unset) but does not claim it, so it is
-    safe to call while the worker is printing."""
+    safe to call while the worker is printing. For a network printer, reports
+    the configured / last-known address without connecting."""
     try:
         con = config.get_printer_connection()
     except Exception as e:
@@ -444,7 +480,7 @@ async def printer_info(
             detail=f"Could not resolve printer: {e}",
         )
     return PrinterInfoResponse(
-        autodetected=not config.PRINTER_USB,
+        autodetected=config.PRINTER_CONNECTION == "usb" and not config.PRINTER_USB,
         configured_selector=config.PRINTER_USB,
         **con.info(),
     )

@@ -1,10 +1,15 @@
 # LabelJetty - example Docker Compose deployment.
 #
-# Quick start:
+# Quick start (USB printer):
 #   1. Set PRINTER_USB to your printer (find it with `lsusb`, e.g. vid:2d37:pid:62de).
 #   2. Make sure the host has a udev rule granting USB access (see docs/configuration.md).
 #   3. docker compose up -d
 #   4. Open http://localhost:8888/
+#
+# Network printer instead (raw TSPL on TCP 9100): set PRINTER_CONNECTION=network and
+# PRINTER_HOST (and optionally PRINTER_MAC) below; the USB-specific bits
+# (device_cgroup_rules, /dev/bus/usb mount) can then be removed. See
+# docs/configuration.md#network-printers.
 #
 # Every LabelJetty setting is an environment variable - see docs/configuration.md
 # for the full list (and which ones you should set before exposing this).
@@ -15,6 +20,12 @@ services:
     restart: unless-stopped
     ports:
       - "8888:8888"
+    # Network printer with PRINTER_MAC: re-finding the printer via ARP needs the
+    # host's network namespace (on the bridge network the container only sees the
+    # Docker gateway). Uncomment, and drop `ports:` above - with host networking
+    # the app listens on the host's port 8888 directly. A fixed PRINTER_HOST
+    # without PRINTER_MAC works fine without this.
+    # network_mode: host
     # USB passthrough that survives unplug/replug. We do NOT use `devices:` here:
     # a static device mapping pins the node that existed at `up` time, so when the
     # printer is replugged (and the kernel hands it a new /dev/bus/usb/NNN/MMM node)
@@ -26,12 +37,27 @@ services:
     device_cgroup_rules:
       - "c 189:* rmw"
     environment:
-      # The only required setting. Find your ids with `lsusb`.
+      # --- Printer: USB (default) ---
+      # Find your ids with `lsusb`; leave unset to auto-detect.
       PRINTER_USB: vid:2d37:pid:62de
+      # --- Printer: network (instead of USB) ---
+      # PRINTER_CONNECTION: network
+      # PRINTER_HOST: 10.101.3.79
+      # PRINTER_PORT: "9100"
+      # Optional: re-find the printer by MAC if its IP changes (needs network_mode: host).
+      # PRINTER_MAC: "aa:bb:cc:dd:ee:ff"
+
       # Match your label stock so jobs without an explicit size print correctly.
       DEFAULT_LABEL_WIDTH_MM: "57"
       DEFAULT_LABEL_HEIGHT_MM: "32"
       DEFAULT_DPI: "203"
+      # More presets for the UI's profile picker (x_offset_mm/dpi optional):
+      # LABEL_PROFILES: '[{"name":"DHL 100x150","width_mm":100,"height_mm":150,"x_offset_mm":4}]'
+      # Content cut off on the left? TSPL's x=0 is the print-head edge. Either set the
+      # printer's max print width to auto-center every label size ...
+      # PRINTER_MAX_WIDTH_MM: "108"
+      # ... or a fixed horizontal offset in mm (positive = right):
+      # LABEL_X_OFFSET_MM: "4"
       # No auth by default. Uncomment to require credentials (see docs/advanced-usage.md#authentication):
       # AUTH_MODE: protected
       # AUTH_TOKENS: '[{"name":"ci","token":"choose-a-long-random-secret"}]'

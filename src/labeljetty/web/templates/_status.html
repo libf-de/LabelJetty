@@ -40,7 +40,22 @@
     {% endif %}
   </div>
 
-  {% if printer_info %}
+  {% if printer_info and printer_info.transport == "network" %}
+  <div class="status-card wide">
+    <div class="k">Device <span class="badge done">network</span></div>
+    <div class="v mono">{{ printer_info.selector }}</div>
+    <dl class="kv">
+      {% if printer_info.configured_host %}<dt>Configured host</dt><dd class="mono">{{ printer_info.configured_host }}</dd>{% endif %}
+      {% if printer_info.mac %}<dt>MAC</dt><dd class="mono">{{ printer_info.mac }}</dd>{% endif %}
+    </dl>
+    {% if printer_info.rediscovered %}
+    <div class="pin-hint">
+      Found via its MAC address at a different IP than configured. Consider updating
+      <code class="mono">PRINTER_HOST={{ printer_info.host }}</code> (or reserving the IP in your DHCP server).
+    </div>
+    {% endif %}
+  </div>
+  {% elif printer_info %}
   <div class="status-card wide">
     <div class="k">Device
       {% if autodetected %}<span class="badge queued">auto-detected</span>

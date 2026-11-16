@@ -238,3 +238,54 @@ def test_checkbox_unchecked_saves_false(client, settings_enabled):
     resp = client.post("/ui/settings", data={"DEFAULT_DPI": "203"})
     assert resp.status_code == 200
     assert get_config().HOMEBOX_ENABLED is False
+
+
+def test_label_profiles_row_editor_saves_x_offset(client, settings_enabled):
+    resp = client.post(
+        "/ui/settings",
+        data={
+            "lp_name": ["DHL", "Small"],
+            "lp_width": ["100", "57"],
+            "lp_height": ["150", "32"],
+            "lp_dpi": ["", ""],
+            "lp_xoff": ["4.5", ""],
+        },
+    )
+    assert resp.status_code == 200
+    profiles = get_config().LABEL_PROFILES
+    assert [(p.name, p.x_offset_mm) for p in profiles] == [("DHL", 4.5), ("Small", None)]
+    assert 'name="lp_xoff" type="number" step="any" value="4.5"' in resp.text
+
+
+def test_decimal_settings_saved_as_float(client, settings_enabled):
+    resp = client.post(
+        "/ui/settings",
+        data={"PRINTER_MAX_WIDTH_MM": "108", "LABEL_X_OFFSET_MM": "-0,5"},
+    )
+    assert resp.status_code == 200
+    cfg = get_config()
+    assert cfg.PRINTER_MAX_WIDTH_MM == 108.0
+    assert cfg.LABEL_X_OFFSET_MM == -0.5
+
+
+def test_network_printer_settings_saved(client, settings_enabled):
+    resp = client.post(
+        "/ui/settings",
+        data={
+            "PRINTER_CONNECTION": "network",
+            "PRINTER_HOST": "10.101.3.79",
+            "PRINTER_PORT": "9100",
+            "PRINTER_MAC": "AA-BB-CC-DD-EE-FF",
+        },
+    )
+    assert resp.status_code == 200
+    cfg = get_config()
+    assert cfg.PRINTER_CONNECTION == "network"
+    assert cfg.PRINTER_HOST == "10.101.3.79"
+    assert cfg.PRINTER_MAC == "aa:bb:cc:dd:ee:ff"
+
+
+def test_network_without_host_or_mac_rejected(client, settings_enabled):
+    resp = client.post("/ui/settings", data={"PRINTER_CONNECTION": "network"})
+    assert resp.status_code == 400
+    assert get_config().PRINTER_CONNECTION == "usb"

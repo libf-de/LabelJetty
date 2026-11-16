@@ -231,13 +231,18 @@ class PrintService:
             # so the printer selector and geometry defaults stay current.
             reload_config()
 
+            width_mm = job.label_width_mm or config.DEFAULT_LABEL_WIDTH_MM
+            height_mm = job.label_height_mm or config.DEFAULT_LABEL_HEIGHT_MM
+            dpi = job.dpi or config.DEFAULT_DPI
+
             con = config.get_printer_connection()
             con.connect()
             printer = TSPLPrinter(
                 connection=con,
-                label_width_mm=job.label_width_mm or config.DEFAULT_LABEL_WIDTH_MM,
-                label_height_mm=job.label_height_mm or config.DEFAULT_LABEL_HEIGHT_MM,
-                dpi=job.dpi or config.DEFAULT_DPI,
+                label_width_mm=width_mm,
+                label_height_mm=height_mm,
+                dpi=dpi,
+                x_offset_mm=self._x_offset_mm(job, width_mm, height_mm, dpi),
             )
 
             printer.wait_until_ready(timeout=60)
@@ -256,6 +261,15 @@ class PrintService:
                 con.disconnect()
             job.finished_at = datetime.now()
             self.save_print_job(job)
+
+    @staticmethod
+    def _x_offset_mm(job: PrintJob, width_mm: int, height_mm: int, dpi: int) -> float:
+        """The job's explicit offset (custom geometry in the UI / API override),
+        else the one configured for its label size."""
+        explicit = (job.params or {}).get("x_offset_mm")
+        if explicit is not None:
+            return float(explicit)
+        return config.resolve_x_offset_mm(width_mm, height_mm, dpi)
 
     @staticmethod
     def _dispatch(printer: TSPLPrinter, job: PrintJob):

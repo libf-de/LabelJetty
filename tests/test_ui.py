@@ -197,3 +197,46 @@ def test_homebox_setup_page(client):
     assert resp.status_code == 200
     assert "curl" in resp.text
     assert "printer.local:8888" in resp.text
+
+
+# --------------------------------------------------------------------------- #
+#  Label profile picker: "Custom…" geometry + per-job horizontal offset
+# --------------------------------------------------------------------------- #
+def test_index_profile_picker_has_custom_option(client):
+    html = client.get("/").text
+    assert '<option value="custom">Custom…</option>' in html
+    # Geometry inputs are hidden until "Custom…" is chosen; copies stay visible.
+    assert 'id="custom-geometry" style="display:none"' in html
+    assert 'name="x_offset_mm"' in html
+    assert 'id="copies"' in html.split('id="custom-geometry"')[1].split("</form>")[0]
+
+
+def test_ui_print_custom_offset_is_stored_on_job(client, worker_running):
+    from labeljetty.core.db import PrintJob, get_session
+    from sqlmodel import select
+
+    resp = client.post(
+        "/ui/print",
+        data={"job_type": "text", "text": "hi", "label_width_mm": "100",
+              "label_height_mm": "150", "x_offset_mm": "3,5"},
+    )
+    assert resp.status_code == 200
+    with get_session() as session:
+        job = session.exec(select(PrintJob)).one()
+    assert job.params["x_offset_mm"] == 3.5
+    assert (job.label_width_mm, job.label_height_mm) == (100, 150)
+
+
+def test_ui_print_without_offset_leaves_it_to_config(client, worker_running):
+    from labeljetty.core.db import PrintJob, get_session
+    from sqlmodel import select
+
+    client.post("/ui/print", data={"job_type": "text", "text": "hi", "x_offset_mm": ""})
+    with get_session() as session:
+        job = session.exec(select(PrintJob)).one()
+    assert "x_offset_mm" not in job.params
+
+
+def test_ui_print_rejects_non_numeric_offset(client, worker_running):
+    resp = client.post("/ui/print", data={"job_type": "text", "text": "hi", "x_offset_mm": "abc"})
+    assert "must be a number" in resp.text

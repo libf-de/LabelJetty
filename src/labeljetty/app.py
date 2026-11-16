@@ -18,7 +18,12 @@ def run():
     log.info(f"LOG_LEVEL: {config.LOG_LEVEL}")
     log.info(f"UVICORN_LOG_LEVEL: {get_uvicorn_loglevel()}")
     log.info(f"Create image storage directory at '{config.IMAGE_STORAGE_DIRECTORY}'")
-    if config.PRINTER_USB:
+    if config.PRINTER_CONNECTION == "network":
+        mac = f" (MAC {config.PRINTER_MAC})" if config.PRINTER_MAC else ""
+        log.info(
+            f"Network printer: {config.PRINTER_HOST or '<find via ARP>'}:{config.PRINTER_PORT}{mac}"
+        )
+    elif config.PRINTER_USB:
         log.info(f"USB printer selector: {config.PRINTER_USB}")
     else:
         log.info("PRINTER_USB unset — auto-detecting a connected TSPL printer")
